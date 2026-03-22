@@ -20,11 +20,25 @@ app.get('/teams', async (req, res) => {
   res.json(result.rows);
 });
 
-// Get all Projects (with dates for the Gantt chart)
+// Get Projects (Now with Filtering!)
 app.get('/projects', async (req, res) => {
-  const result = await pool.query('SELECT p.*, t.name as team_name FROM projects p JOIN teams t ON p.team_id = t.id');
-  res.json(result.rows);
+  try {
+    const { team_id } = req.query; // Look for ?team_id= in the URL
+    let query = 'SELECT p.*, t.name as team_name FROM projects p JOIN teams t ON p.team_id = t.id';
+    let params = [];
+
+    if (team_id && team_id !== "all") {
+      query += ' WHERE p.team_id = $1';
+      params.push(team_id);
+    }
+
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
 });
+
 
 // Save a New Project (Unified Form)
 app.post('/projects', async (req, res) => {

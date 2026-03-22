@@ -17,46 +17,46 @@
 <body class="bg-gray-50 font-sans">
 
     <header class="bg-black text-white p-6 shadow-lg border-b-4 border-amd">
-        <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-3xl font-bold tracking-tighter">AMD <span class="text-gray-400 font-light">DASHBOARD</span></h1>
-            <button onclick="document.getElementById('modal').classList.remove('hidden')" class="bg-amd hover:bg-red-700 text-white px-6 py-2 rounded-full font-bold transition">
-                + NEW PROJECT
-            </button>
+        <div class="container mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <h1 class="text-3xl font-bold tracking-tighter">AMD <span class="text-gray-400 font-light text-2xl">DASHBOARD</span></h1>
+            
+            <div class="flex items-center gap-4">
+                <select id="teamFilter" onchange="loadData()" class="bg-gray-800 text-white p-2 rounded-lg border border-gray-700 text-sm outline-none focus:ring-2 focus:ring-red-500">
+                    <option value="all">ALL TEAMS</option>
+                    </select>
+                <button onclick="document.getElementById('modal').classList.remove('hidden')" class="bg-amd hover:bg-red-700 text-white px-6 py-2 rounded-full font-bold transition whitespace-nowrap">
+                    + NEW PROJECT
+                </button>
+            </div>
         </div>
     </header>
 
     <main class="container mx-auto p-6">
-        <h2 class="text-xl font-bold mb-4 text-gray-800 uppercase tracking-widest">Active Projects</h2>
-        <div id="project-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
-            </div>
-
+        <div id="project-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10"></div>
         <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200">
-            <h2 class="text-xl font-bold mb-4 text-gray-800">Timeline Performance</h2>
+            <h2 class="text-xl font-bold mb-4 text-gray-800 uppercase tracking-tight">Timeline</h2>
             <div id="gantt"></div>
         </div>
     </main>
 
-    <div id="modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+    <div id="modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
         <div class="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl">
-            <h2 class="text-2xl font-bold mb-6 text-gray-900 border-b pb-2">Create New Entry</h2>
+            <h2 class="text-2xl font-bold mb-6 text-gray-900 border-b pb-2">New Entry</h2>
             <form id="projectForm" class="space-y-4">
-                <input type="text" id="name" placeholder="Project Name" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-red-500 outline-none" required>
+                <input type="text" id="name" placeholder="Project Name" class="w-full p-3 border rounded-lg" required>
                 <select id="team_id" class="w-full p-3 border rounded-lg"></select>
                 <div class="grid grid-cols-2 gap-4">
-                    <div><label class="text-xs font-bold text-gray-500 uppercase">Start</label><input type="date" id="start_date" class="w-full p-2 border rounded-lg" required></div>
-                    <div><label class="text-xs font-bold text-gray-500 uppercase">End</label><input type="date" id="end_date" class="w-full p-2 border rounded-lg" required></div>
+                    <div><label class="text-xs font-bold text-gray-400">START</label><input type="date" id="start_date" class="w-full p-2 border rounded-lg" required></div>
+                    <div><label class="text-xs font-bold text-gray-400">END</label><input type="date" id="end_date" class="w-full p-2 border rounded-lg" required></div>
                 </div>
-                <div class="flex justify-between items-center">
-                    <label class="font-bold text-gray-700">Status</label>
-                    <select id="status" class="p-2 border rounded-lg">
-                        <option>On Track</option>
-                        <option>Delayed</option>
-                        <option>Completed</option>
-                    </select>
-                </div>
+                <select id="status" class="w-full p-3 border rounded-lg">
+                    <option>On Track</option>
+                    <option>Delayed</option>
+                    <option>Completed</option>
+                </select>
                 <div class="flex gap-3 pt-4">
-                    <button type="button" onclick="document.getElementById('modal').classList.add('hidden')" class="flex-1 py-3 text-gray-500 font-bold">Cancel</button>
-                    <button type="submit" class="flex-1 bg-amd text-white py-3 rounded-lg font-bold shadow-lg">Save Project</button>
+                    <button type="button" onclick="document.getElementById('modal').classList.add('hidden')" class="flex-1 py-3 text-gray-400 font-bold">Cancel</button>
+                    <button type="submit" class="flex-1 bg-amd text-white py-3 rounded-lg font-bold shadow-lg">Save</button>
                 </div>
             </form>
         </div>
@@ -64,45 +64,40 @@
 
     <script>
         async function loadData() {
-            const res = await fetch('/projects');
+            const filterValue = document.getElementById('teamFilter').value;
+            const res = await fetch(`/projects?team_id=${filterValue}`);
             const projects = await res.json();
             
-            // 1. Update Project Cards with Delete Button
             const projectList = document.getElementById('project-list');
             projectList.innerHTML = projects.map(p => `
                 <div class="bg-white p-6 rounded-xl shadow-sm border-l-8 ${p.status === 'Delayed' ? 'border-orange-500' : 'border-amd'} relative group">
-                    <button onclick="deleteProject(${p.id})" class="absolute top-2 right-2 text-gray-300 hover:text-red-600 font-bold text-sm transition opacity-0 group-hover:opacity-100">
-                        DELETE
-                    </button>
+                    <button onclick="deleteProject(${p.id})" class="absolute top-2 right-2 text-gray-300 hover:text-red-500 font-bold text-xs transition opacity-0 group-hover:opacity-100">DELETE</button>
                     <p class="text-gray-400 text-xs font-bold uppercase tracking-widest">${p.team_name}</p>
-                    <h3 class="text-xl font-black text-gray-900 mb-2">${p.name}</h3>
-                    <div class="flex justify-between items-center mt-4">
-                        <span class="px-3 py-1 bg-gray-100 text-xs font-bold rounded-full">${p.status}</span>
-                        <span class="text-gray-400 text-xs italic">${p.start_date.split('T')[0]}</span>
+                    <h3 class="text-lg font-black text-gray-900 mb-1">${p.name}</h3>
+                    <div class="flex justify-between items-center mt-3">
+                        <span class="px-2 py-1 bg-gray-100 text-[10px] font-bold rounded uppercase">${p.status}</span>
+                        <span class="text-gray-400 text-[10px] uppercase">${new Date(p.start_date).toLocaleDateString()}</span>
                     </div>
                 </div>
             `).join('');
 
-            // 2. Update Gantt
-            const ganttContainer = document.getElementById('gantt');
-            ganttContainer.innerHTML = ""; // Clear old chart
+            document.getElementById('gantt').innerHTML = "";
             if (projects.length > 0) {
-                const ganttTasks = projects.map(p => ({
+                const tasks = projects.map(p => ({
                     id: p.id.toString(),
                     name: p.name,
                     start: p.start_date.split('T')[0],
                     end: p.end_date.split('T')[0],
                     progress: 50
                 }));
-                new Gantt("#gantt", ganttTasks, { view_mode: 'Day' });
+                new Gantt("#gantt", tasks, { view_mode: 'Day', bar_height: 25 });
             }
         }
 
-        // DELETE FUNCTION
         async function deleteProject(id) {
-            if (confirm("Are you sure you want to delete this project?")) {
+            if (confirm("Delete this project?")) {
                 await fetch(`/projects/${id}`, { method: 'DELETE' });
-                loadData(); // Refresh without reloading page
+                loadData();
             }
         }
 
@@ -128,7 +123,9 @@
         async function loadTeams() {
             const res = await fetch('/teams');
             const teams = await res.json();
-            document.getElementById('team_id').innerHTML = teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+            const options = teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+            document.getElementById('team_id').innerHTML = options;
+            document.getElementById('teamFilter').innerHTML += options; // Add to filter too
         }
 
         loadTeams();
