@@ -39,5 +39,14 @@ app.post('/projects', async (req, res) => {
     res.status(500).send(err.message);
   }
 });
-
+// DELETE a Project
+app.delete('/projects/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM projects WHERE id = $1', [id]);
+    res.json({ message: "Project deleted!" });
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});
 app.listen(port, () => console.log(`AMD Dashboard running on ${port}`));
