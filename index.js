@@ -20,16 +20,28 @@ app.get('/teams', async (req, res) => {
   res.json(result.rows);
 });
 
-// Get Projects (Now with Filtering!)
+// SMART VERSION 2.0 (Filters by Team AND Status)
 app.get('/projects', async (req, res) => {
   try {
-    const { team_id } = req.query; // Look for ?team_id= in the URL
+    const { team_id, status } = req.query;
     let query = 'SELECT p.*, t.name as team_name FROM projects p JOIN teams t ON p.team_id = t.id';
     let params = [];
+    let conditions = [];
 
+    // Filter by Team if selected
     if (team_id && team_id !== "all") {
-      query += ' WHERE p.team_id = $1';
       params.push(team_id);
+      conditions.push(`p.team_id = $${params.length}`);
+    }
+
+    // Filter by Status if selected
+    if (status && status !== "all") {
+      params.push(status);
+      conditions.push(`p.status = $${params.length}`);
+    }
+
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
     }
 
     const result = await pool.query(query, params);

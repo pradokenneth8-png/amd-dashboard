@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AMD Project Dashboard</title>
+    <title>Asset Management Department Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.css">
@@ -11,20 +11,25 @@
     <style>
         :root { --amd-red: #ED1C24; }
         .bg-amd { background-color: var(--amd-red); }
-        .text-amd { color: var(--amd-red); }
         .gantt .bar-progress { fill: var(--amd-red) !important; }
     </style>
 </head>
 <body class="bg-gray-100 font-sans text-gray-900">
 
     <header class="bg-black text-white p-4 shadow-xl border-b-4 border-amd sticky top-0 z-50">
-        <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-2xl font-black italic tracking-tighter">AMD <span class="text-gray-500 font-light not-italic">OPS</span></h1>
-            <div class="flex gap-4">
-                <select id="teamFilter" onchange="loadData()" class="bg-gray-900 border border-gray-700 rounded px-3 py-1 text-sm outline-none focus:ring-1 focus:ring-red-500">
+        <div class="container mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <h1 class="text-xl font-black italic tracking-tighter uppercase">Asset Management Department</h1>
+            <div class="flex flex-wrap gap-2">
+                <select id="statusFilter" onchange="loadData()" class="bg-gray-900 border border-gray-700 rounded px-3 py-1 text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-500">
+                    <option value="all">ALL STATUS</option>
+                    <option value="On Track">ON TRACK</option>
+                    <option value="Delayed">DELAYED</option>
+                    <option value="Completed">COMPLETED</option>
+                </select>
+                <select id="teamFilter" onchange="loadData()" class="bg-gray-900 border border-gray-700 rounded px-3 py-1 text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-500">
                     <option value="all">ALL TEAMS</option>
                 </select>
-                <button onclick="openModal()" class="bg-amd hover:bg-red-700 text-white px-5 py-1 rounded-full font-bold text-sm transition">+ NEW</button>
+                <button onclick="openModal()" class="bg-amd hover:bg-red-700 text-white px-4 py-1 rounded-full font-bold text-[10px] transition">+ NEW</button>
             </div>
         </div>
     </header>
@@ -37,22 +42,18 @@
             </div>
 
             <div class="lg:col-span-3 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                    <h2 class="font-bold text-gray-700 uppercase text-xs">Project Master List</h2>
-                </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-sm">
                         <thead class="bg-gray-50 text-gray-400 text-[10px] font-bold uppercase">
                             <tr>
-                                <th class="p-4">Project Name</th>
+                                <th class="p-4">Project</th>
                                 <th class="p-4">Team</th>
                                 <th class="p-4 w-48">Progress</th>
                                 <th class="p-4">Status</th>
                                 <th class="p-4 text-right">Actions</th>
                             </tr>
                         </thead>
-                        <tbody id="project-list-rows">
-                            </tbody>
+                        <tbody id="project-list-rows"></tbody>
                     </table>
                 </div>
             </div>
@@ -60,42 +61,35 @@
 
         <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
             <h2 class="text-xs font-bold text-gray-400 uppercase mb-4">Gantt Performance</h2>
-            <div id="gantt" class="overflow-hidden"></div>
+            <div id="gantt"></div>
         </div>
     </main>
 
     <div id="modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl">
-            <h2 id="modalTitle" class="text-xl font-bold mb-6 text-gray-900">New Project</h2>
+        <div class="bg-white rounded-2xl p-8 max-w-md w-full">
+            <h2 id="modalTitle" class="text-xl font-bold mb-6">New Entry</h2>
             <form id="projectForm" class="space-y-4">
                 <input type="hidden" id="edit-id">
-                <div>
-                    <label class="text-[10px] font-bold text-gray-400 uppercase">Project Name</label>
-                    <input type="text" id="name" class="w-full p-2 border rounded mt-1" required>
+                <input type="text" id="name" placeholder="Project Name" class="w-full p-2 border rounded" required>
+                <div id="full-inputs">
+                    <select id="team_id" class="w-full p-2 border rounded mt-2"></select>
+                    <div class="grid grid-cols-2 gap-4 mt-2">
+                        <input type="date" id="start_date" class="w-full p-2 border rounded">
+                        <input type="date" id="end_date" class="w-full p-2 border rounded">
+                    </div>
                 </div>
-                <div id="team-select-container">
-                    <label class="text-[10px] font-bold text-gray-400 uppercase">Assign Team</label>
-                    <select id="team_id" class="w-full p-2 border rounded mt-1"></select>
-                </div>
-                <div class="grid grid-cols-2 gap-4" id="date-inputs">
-                    <div><label class="text-[10px] font-bold text-gray-400 uppercase">Start</label><input type="date" id="start_date" class="w-full p-2 border rounded"></div>
-                    <div><label class="text-[10px] font-bold text-gray-400 uppercase">End</label><input type="date" id="end_date" class="w-full p-2 border rounded"></div>
-                </div>
-                <div>
+                <div class="mt-2">
                     <label class="text-[10px] font-bold text-gray-400 uppercase">Progress (<span id="prog-val">0</span>%)</label>
                     <input type="range" id="progress" min="0" max="100" class="w-full h-2 bg-gray-200 rounded-lg appearance-none accent-red-600" oninput="document.getElementById('prog-val').innerText = this.value">
                 </div>
-                <div>
-                    <label class="text-[10px] font-bold text-gray-400 uppercase">Status</label>
-                    <select id="status" class="w-full p-2 border rounded mt-1">
-                        <option>On Track</option>
-                        <option>Delayed</option>
-                        <option>Completed</option>
-                    </select>
-                </div>
+                <select id="status" class="w-full p-2 border rounded mt-2">
+                    <option>On Track</option>
+                    <option>Delayed</option>
+                    <option>Completed</option>
+                </select>
                 <div class="flex gap-3 pt-4">
-                    <button type="button" onclick="closeModal()" class="flex-1 py-2 text-gray-400 font-bold uppercase text-xs">Cancel</button>
-                    <button type="submit" class="flex-1 bg-amd text-white py-2 rounded font-bold uppercase text-xs shadow-lg">Save Changes</button>
+                    <button type="button" onclick="closeModal()" class="flex-1 text-gray-400 font-bold text-xs uppercase">Cancel</button>
+                    <button type="submit" class="flex-1 bg-amd text-white py-2 rounded font-bold text-xs uppercase">Save</button>
                 </div>
             </form>
         </div>
@@ -105,15 +99,17 @@
         let statusChartInstance = null;
 
         async function loadData() {
-            const filterValue = document.getElementById('teamFilter').value;
-            const res = await fetch(`/projects?team_id=${filterValue}`);
+            const team = document.getElementById('teamFilter').value;
+            const status = document.getElementById('statusFilter').value;
+            // Fetch using both filters!
+            const res = await fetch(`/projects?team_id=${team}&status=${status}`);
             const projects = await res.json();
             
             const listBody = document.getElementById('project-list-rows');
             listBody.innerHTML = projects.map(p => `
                 <tr class="border-b border-gray-50 hover:bg-gray-50 transition">
                     <td class="p-4 font-bold text-gray-800">${p.name}</td>
-                    <td class="p-4 text-gray-500 text-xs">${p.team_name}</td>
+                    <td class="p-4 text-gray-500 text-[10px] font-bold uppercase">${p.team_name}</td>
                     <td class="p-4">
                         <div class="w-full bg-gray-100 rounded-full h-1.5 mb-1">
                             <div class="bg-amd h-1.5 rounded-full" style="width: ${p.progress}%"></div>
@@ -121,7 +117,7 @@
                         <span class="text-[9px] font-bold text-gray-400">${p.progress}% Complete</span>
                     </td>
                     <td class="p-4">
-                        <span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase ${p.status === 'Delayed' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}">
+                        <span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase ${p.status === 'Delayed' ? 'bg-orange-100 text-orange-600' : p.status === 'Completed' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}">
                             ${p.status}
                         </span>
                     </td>
@@ -136,6 +132,21 @@
             renderGantt(projects);
         }
 
+        function updateChart(projects) {
+            const counts = { 'On Track': 0, 'Delayed': 0, 'Completed': 0 };
+            projects.forEach(p => counts[p.status]++);
+            const ctx = document.getElementById('statusChart').getContext('2d');
+            if (statusChartInstance) statusChartInstance.destroy();
+            statusChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(counts),
+                    datasets: [{ data: Object.values(counts), backgroundColor: ['#3B82F6', '#F97316', '#10B981'], borderWidth: 0 }]
+                },
+                options: { cutout: '80%', plugins: { legend: { display: false } } }
+            });
+        }
+
         function editProject(p) {
             document.getElementById('modalTitle').innerText = "Edit Project";
             document.getElementById('edit-id').value = p.id;
@@ -143,11 +154,7 @@
             document.getElementById('progress').value = p.progress;
             document.getElementById('prog-val').innerText = p.progress;
             document.getElementById('status').value = p.status;
-            
-            // Hide team/date for simple edits to keep it clean, or keep them if you prefer
-            document.getElementById('team-select-container').classList.add('hidden');
-            document.getElementById('date-inputs').classList.add('hidden');
-            
+            document.getElementById('full-inputs').classList.add('hidden');
             document.getElementById('modal').classList.remove('hidden');
         }
 
@@ -155,8 +162,7 @@
             document.getElementById('modalTitle').innerText = "New Project";
             document.getElementById('projectForm').reset();
             document.getElementById('edit-id').value = "";
-            document.getElementById('team-select-container').classList.remove('hidden');
-            document.getElementById('date-inputs').classList.remove('hidden');
+            document.getElementById('full-inputs').classList.remove('hidden');
             document.getElementById('modal').classList.remove('hidden');
         }
 
@@ -170,57 +176,26 @@
                 progress: document.getElementById('progress').value,
                 status: document.getElementById('status').value
             };
-
             if (id) {
-                // UPDATE
-                await fetch(`/projects/${id}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
+                await fetch(`/projects/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
             } else {
-                // CREATE
                 data.team_id = document.getElementById('team_id').value;
                 data.start_date = document.getElementById('start_date').value;
                 data.end_date = document.getElementById('end_date').value;
-                await fetch('/projects', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
+                await fetch('/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
             }
-            closeModal();
-            loadData();
+            closeModal(); loadData();
         });
 
-        function updateChart(projects) {
-            const counts = { 'On Track': 0, 'Delayed': 0, 'Completed': 0 };
-            projects.forEach(p => counts[p.status]++);
-            const ctx = document.getElementById('statusChart').getContext('2d');
-            if (statusChartInstance) statusChartInstance.destroy();
-            statusChartInstance = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: Object.keys(counts),
-                    datasets: [{ data: Object.values(counts), backgroundColor: ['#ED1C24', '#F97316', '#10B981'], borderWidth: 0 }]
-                },
-                options: { cutout: '80%', plugins: { legend: { display: false } } }
-            });
-        }
+        async function deleteProject(id) { if (confirm("Delete?")) { await fetch(`/projects/${id}`, { method: 'DELETE' }); loadData(); } }
 
         function renderGantt(projects) {
             const container = document.getElementById('gantt');
             container.innerHTML = "";
             if (projects.length > 0) {
-                const tasks = projects.map(p => ({
-                    id: p.id.toString(), name: p.name, start: p.start_date.split('T')[0], end: p.end_date.split('T')[0], progress: p.progress
-                }));
+                const tasks = projects.map(p => ({ id: p.id.toString(), name: p.name, start: p.start_date.split('T')[0], end: p.end_date.split('T')[0], progress: p.progress }));
                 new Gantt("#gantt", tasks, { view_mode: 'Day', bar_height: 20 });
             }
-        }
-
-        async function deleteProject(id) {
-            if (confirm("Delete this?")) { await fetch(`/projects/${id}`, { method: 'DELETE' }); loadData(); }
         }
 
         async function init() {
