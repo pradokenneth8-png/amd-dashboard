@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Management Dashboard</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/frappe-gantt/0.6.1/frappe-gantt.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/frappe-gantt/0.6.1/frappe-gantt.min.js"></script>
+</head>
+<body class="bg-slate-100 font-sans text-slate-800">
+
+    <nav class="bg-blue-700 text-white p-4 shadow-md flex justify-between items-center">
+        <h1 class="text-2xl font-bold tracking-wide">Project Dashboard</h1>
+        
+        <div>
+            <label for="teamFilter" class="mr-2 font-medium">Filter by Team:</label>
+            <select id="teamFilter" class="bg-white text-black p-2 rounded shadow-sm border-none outline-none">
+                <option value="all">All Teams</option>
+                </select>
+        </div>
+    </nav>
+
+    <main class="p-8">
+        <div class="bg-white p-6 rounded-lg shadow-sm border border-slate-200 mb-8">
+            <h3 class="text-slate-700 font-bold mb-4 text-lg">Add New Project</h3>
+            <form id="addProjectForm" class="flex gap-4 items-end">
+                <div class="flex-1">
+                    <label class="block text-sm font-medium text-slate-500 mb-1">Project Name</label>
+                    <input type="text" id="newProjectName" required placeholder="e.g., Q4 Marketing Push" class="w-full p-2 border border-slate-300 rounded outline-none focus:border-blue-500">
+                </div>
+                <div class="w-48">
+                    <label class="block text-sm font-medium text-slate-500 mb-1">Assign Team</label>
+                    <select id="newProjectTeam" required class="w-full p-2 border border-slate-300 rounded outline-none focus:border-blue-500">
+                        </select>
+                </div>
+                <div class="w-48">
+                    <label class="block text-sm font-medium text-slate-500 mb-1">Status</label>
+                    <select id="newProjectStatus" class="w-full p-2 border border-slate-300 rounded outline-none focus:border-blue-500">
+                        <option value="On Track">On Track</option>
+                        <option value="At Risk">At Risk</option>
+                    </select>
+                </div>
+                <div>
+                    <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 font-medium transition-colors">Save Project</button>
+                </div>
+            </form>
+        </div>
+<div class="bg-white p-6 rounded-lg shadow-sm border border-slate-200 mb-8">
+            <h3 class="text-slate-700 font-bold mb-4 text-lg">Add New Task (Gantt Chart)</h3>
+            <form id="addTaskForm" class="flex flex-wrap gap-4 items-end">
+                <div class="flex-1 min-w-[200px]">
+                    <label class="block text-sm font-medium text-slate-500 mb-1">Task Name</label>
+                    <input type="text" id="newTaskName" required placeholder="e.g., Design Homepage" class="w-full p-2 border border-slate-300 rounded outline-none focus:border-blue-500">
+                </div>
+                <div class="w-48">
+                    <label class="block text-sm font-medium text-slate-500 mb-1">Assign to Project</label>
+                    <select id="newTaskProject" required class="w-full p-2 border border-slate-300 rounded outline-none focus:border-blue-500">
+                    </select>
+                </div>
+                <div class="w-36">
+                    <label class="block text-sm font-medium text-slate-500 mb-1">Start Date</label>
+                    <input type="date" id="newStartDate" required class="w-full p-2 border border-slate-300 rounded outline-none focus:border-blue-500">
+                </div>
+                <div class="w-36">
+                    <label class="block text-sm font-medium text-slate-500 mb-1">End Date</label>
+                    <input type="date" id="newEndDate" required class="w-full p-2 border border-slate-300 rounded outline-none focus:border-blue-500">
+                </div>
+                <div class="w-24">
+                    <label class="block text-sm font-medium text-slate-500 mb-1">Progress %</label>
+                    <input type="number" id="newProgress" min="0" max="100" value="0" required class="w-full p-2 border border-slate-300 rounded outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 font-medium transition-colors">Save Task</button>
+                </div>
+            </form>
+        </div>
+        
+        <div class="grid grid-cols-3 gap-6 mb-8">
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+                <h3 class="text-slate-500 font-semibold mb-2">Total Projects</h3>
+                <p id="totalProjects" class="text-3xl font-bold text-blue-600">0</p>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+                <h3 class="text-slate-500 font-semibold mb-2">On Track</h3>
+                <p id="onTrack" class="text-3xl font-bold text-green-500">0</p>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+                <h3 class="text-slate-500 font-semibold mb-2">At Risk</h3>
+                <p id="atRisk" class="text-3xl font-bold text-red-500">0</p>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow-sm border border-slate-200 overflow-x-auto">
+    <h3 class="text-slate-500 font-semibold mb-4">Project Timeline</h3>
+    <svg id="gantt"></svg>
+</div>
+
+    </main>
+
+</body>
+<script>
+        // 1. Load Teams into Dropdowns
+        async function loadTeams() {
+            const response = await fetch('/teams');
+            const teams = await response.json();
+            const teamFilter = document.getElementById('teamFilter');
+            const formTeam = document.getElementById('newProjectTeam');
+            
+            teams.forEach(team => {
+                teamFilter.appendChild(new Option(team.name, team.id));
+                formTeam.appendChild(new Option(team.name, team.id));
+            });
+        }
+
+        // 2. NEW: Load Projects into the Task Form Dropdown
+        async function loadProjectsDropdown() {
+            const response = await fetch('/projects');
+            const projects = await response.json();
+            const projectDropdown = document.getElementById('newTaskProject');
+            
+            projectDropdown.innerHTML = ''; // Clear out old ones
+            projects.forEach(proj => {
+                projectDropdown.appendChild(new Option(proj.name, proj.id));
+            });
+        }
+
+        // 3. Load Dashboard Data (Cards & Gantt)
+        async function loadDashboard(teamId = 'all') {
+            try {
+                const projRes = await fetch('/projects');
+                let projects = await projRes.json();
+                const taskRes = await fetch('/tasks');
+                let tasks = await taskRes.json();
+
+                if (teamId !== 'all') {
+                    projects = projects.filter(p => p.team_id == teamId); 
+                    const projectIds = projects.map(p => p.id); 
+                    tasks = tasks.filter(t => projectIds.includes(t.project_id)); 
+                }
+
+                document.getElementById('totalProjects').textContent = projects.length;
+                document.getElementById('onTrack').textContent = projects.filter(p => p.status === 'On Track').length;
+                document.getElementById('atRisk').textContent = projects.filter(p => p.status === 'At Risk').length;
+
+                document.getElementById('gantt').innerHTML = ''; 
+                if (tasks.length > 0) {
+                    const formattedTasks = tasks.map(task => ({
+                        id: task.id.toString(),
+                        name: task.task_name,
+                        start: task.start_date.substring(0, 10),
+                        end: task.end_date.substring(0, 10),
+                        progress: task.progress
+                    }));
+                    new Gantt("#gantt", formattedTasks, {
+                        header_height: 50, column_width: 30, step: 24,
+                        view_modes: ['Quarter Day', 'Half Day', 'Day', 'Week', 'Month'],
+                        bar_height: 20, bar_corner_radius: 3, arrow_curve: 5, padding: 18, view_mode: 'Day'
+                    });
+                } else {
+                    document.getElementById('gantt').innerHTML = '<text x="20" y="40" class="text-slate-500">No tasks found for this team.</text>';
+                }
+            } catch (error) { console.error("Error:", error); }
+        }
+
+        // 4. Listeners for UI interaction
+        document.getElementById('teamFilter').addEventListener('change', e => loadDashboard(e.target.value));
+
+        // 5. Save Project Form Submit
+        document.getElementById('addProjectForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const name = document.getElementById('newProjectName').value;
+            const team_id = document.getElementById('newProjectTeam').value;
+            const status = document.getElementById('newProjectStatus').value;
+
+            await fetch('/projects', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, team_id, status })
+            });
+
+            document.getElementById('newProjectName').value = '';
+            loadDashboard(document.getElementById('teamFilter').value);
+            loadProjectsDropdown(); // Refresh the project list in the Task form!
+            alert("Project Saved Successfully!");
+        });
+
+        // 6. NEW: Save Task Form Submit
+        document.getElementById('addTaskForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const task_name = document.getElementById('newTaskName').value;
+            const project_id = document.getElementById('newTaskProject').value;
+            const start_date = document.getElementById('newStartDate').value;
+            const end_date = document.getElementById('newEndDate').value;
+            const progress = document.getElementById('newProgress').value;
+
+            await fetch('/tasks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ project_id, task_name, start_date, end_date, progress })
+            });
+
+            // Clear the form boxes
+            document.getElementById('newTaskName').value = '';
+            document.getElementById('newStartDate').value = '';
+            document.getElementById('newEndDate').value = '';
+            document.getElementById('newProgress').value = '0';
+            
+            // Reload the dashboard to show the new bar on the Gantt chart!
+            loadDashboard(document.getElementById('teamFilter').value);
+            alert("Task Added to Gantt Chart!");
+        });
+
+        // 7. Start everything up!
+        loadTeams();
+        loadProjectsDropdown();
+        loadDashboard();
+    </script>
+</html>
