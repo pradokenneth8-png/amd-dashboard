@@ -63,4 +63,18 @@ app.delete('/projects/:id', async (req, res) => {
     res.status(500).send(err.message);
   }
 });
+// UPDATE a Project (Name and Progress)
+app.put('/projects/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, progress, status } = req.body;
+    await pool.query(
+      'UPDATE projects SET name = $1, progress = $2, status = $3 WHERE id = $4',
+      [name, progress, status, id]
+    );
+    res.json({ message: "Project updated!" });
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});
 app.listen(port, () => console.log(`AMD Dashboard running on ${port}`));
