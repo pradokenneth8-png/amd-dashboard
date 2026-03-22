@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --amd-red: #ED1C24; }
         .bg-amd { background-color: var(--amd-red); }
@@ -18,13 +19,13 @@
 
     <header class="bg-black text-white p-6 shadow-lg border-b-4 border-amd">
         <div class="container mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-            <h1 class="text-3xl font-bold tracking-tighter">AMD <span class="text-gray-400 font-light text-2xl">DASHBOARD</span></h1>
+            <h1 class="text-3xl font-bold tracking-tighter italic">AMD <span class="text-gray-400 font-light text-2xl not-italic">DASHBOARD</span></h1>
             
             <div class="flex items-center gap-4">
                 <select id="teamFilter" onchange="loadData()" class="bg-gray-800 text-white p-2 rounded-lg border border-gray-700 text-sm outline-none focus:ring-2 focus:ring-red-500">
                     <option value="all">ALL TEAMS</option>
-                    </select>
-                <button onclick="document.getElementById('modal').classList.remove('hidden')" class="bg-amd hover:bg-red-700 text-white px-6 py-2 rounded-full font-bold transition whitespace-nowrap">
+                </select>
+                <button onclick="document.getElementById('modal').classList.remove('hidden')" class="bg-amd hover:bg-red-700 text-white px-6 py-2 rounded-full font-bold transition shadow-lg">
                     + NEW PROJECT
                 </button>
             </div>
@@ -32,22 +33,38 @@
     </header>
 
     <main class="container mx-auto p-6">
-        <div id="project-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10"></div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
+            <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200 lg:col-span-1">
+                <h2 class="text-sm font-bold text-gray-400 uppercase mb-4">Project Status %</h2>
+                <canvas id="statusChart" height="200"></canvas>
+            </div>
+
+            <div class="lg:col-span-2">
+                <h2 class="text-sm font-bold text-gray-400 uppercase mb-4">Active Projects</h2>
+                <div id="project-list" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+            </div>
+        </div>
+
         <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200">
-            <h2 class="text-xl font-bold mb-4 text-gray-800 uppercase tracking-tight">Timeline</h2>
+            <h2 class="text-sm font-bold text-gray-400 uppercase mb-4">Timeline</h2>
             <div id="gantt"></div>
         </div>
     </main>
 
-    <div id="modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div id="modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
         <div class="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl">
             <h2 class="text-2xl font-bold mb-6 text-gray-900 border-b pb-2">New Entry</h2>
             <form id="projectForm" class="space-y-4">
                 <input type="text" id="name" placeholder="Project Name" class="w-full p-3 border rounded-lg" required>
                 <select id="team_id" class="w-full p-3 border rounded-lg"></select>
                 <div class="grid grid-cols-2 gap-4">
-                    <div><label class="text-xs font-bold text-gray-400">START</label><input type="date" id="start_date" class="w-full p-2 border rounded-lg" required></div>
-                    <div><label class="text-xs font-bold text-gray-400">END</label><input type="date" id="end_date" class="w-full p-2 border rounded-lg" required></div>
+                    <div><label class="text-[10px] font-bold text-gray-400">START</label><input type="date" id="start_date" class="w-full p-2 border rounded-lg" required></div>
+                    <div><label class="text-[10px] font-bold text-gray-400">END</label><input type="date" id="end_date" class="w-full p-2 border rounded-lg" required></div>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-gray-400">PROGRESS (%)</label>
+                    <input type="range" id="progress" min="0" max="100" value="0" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-red-600" oninput="this.nextElementSibling.value = this.value + '%'">
+                    <output class="text-xs font-bold text-gray-600">0%</output>
                 </div>
                 <select id="status" class="w-full p-3 border rounded-lg">
                     <option>On Track</option>
@@ -56,42 +73,81 @@
                 </select>
                 <div class="flex gap-3 pt-4">
                     <button type="button" onclick="document.getElementById('modal').classList.add('hidden')" class="flex-1 py-3 text-gray-400 font-bold">Cancel</button>
-                    <button type="submit" class="flex-1 bg-amd text-white py-3 rounded-lg font-bold shadow-lg">Save</button>
+                    <button type="submit" class="flex-1 bg-amd text-white py-3 rounded-lg font-bold">Save Project</button>
                 </div>
             </form>
         </div>
     </div>
 
     <script>
+        let statusChartInstance = null;
+
         async function loadData() {
             const filterValue = document.getElementById('teamFilter').value;
             const res = await fetch(`/projects?team_id=${filterValue}`);
             const projects = await res.json();
             
+            // 1. Render Project Cards with Progress Bars
             const projectList = document.getElementById('project-list');
             projectList.innerHTML = projects.map(p => `
-                <div class="bg-white p-6 rounded-xl shadow-sm border-l-8 ${p.status === 'Delayed' ? 'border-orange-500' : 'border-amd'} relative group">
-                    <button onclick="deleteProject(${p.id})" class="absolute top-2 right-2 text-gray-300 hover:text-red-500 font-bold text-xs transition opacity-0 group-hover:opacity-100">DELETE</button>
-                    <p class="text-gray-400 text-xs font-bold uppercase tracking-widest">${p.team_name}</p>
-                    <h3 class="text-lg font-black text-gray-900 mb-1">${p.name}</h3>
-                    <div class="flex justify-between items-center mt-3">
-                        <span class="px-2 py-1 bg-gray-100 text-[10px] font-bold rounded uppercase">${p.status}</span>
-                        <span class="text-gray-400 text-[10px] uppercase">${new Date(p.start_date).toLocaleDateString()}</span>
+                <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-100 relative group border-t-4 ${p.status === 'Delayed' ? 'border-orange-500' : 'border-amd'}">
+                    <button onclick="deleteProject(${p.id})" class="absolute top-2 right-2 text-gray-300 hover:text-red-500 font-bold text-[10px] transition opacity-0 group-hover:opacity-100">DELETE</button>
+                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">${p.team_name}</p>
+                    <h3 class="text-md font-bold text-gray-900">${p.name}</h3>
+                    
+                    <div class="mt-3">
+                        <div class="flex justify-between text-[10px] mb-1 font-bold">
+                            <span>PROGRESS</span>
+                            <span>${p.progress}%</span>
+                        </div>
+                        <div class="w-full bg-gray-100 rounded-full h-1.5">
+                            <div class="bg-amd h-1.5 rounded-full" style="width: ${p.progress}%"></div>
+                        </div>
                     </div>
                 </div>
             `).join('');
 
-            document.getElementById('gantt').innerHTML = "";
+            // 2. Update Pie Chart (Status Distribution)
+            updateChart(projects);
+
+            // 3. Update Gantt
+            const ganttContainer = document.getElementById('gantt');
+            ganttContainer.innerHTML = "";
             if (projects.length > 0) {
                 const tasks = projects.map(p => ({
                     id: p.id.toString(),
                     name: p.name,
                     start: p.start_date.split('T')[0],
                     end: p.end_date.split('T')[0],
-                    progress: 50
+                    progress: p.progress
                 }));
-                new Gantt("#gantt", tasks, { view_mode: 'Day', bar_height: 25 });
+                new Gantt("#gantt", tasks, { view_mode: 'Day', bar_height: 20 });
             }
+        }
+
+        function updateChart(projects) {
+            const statusCounts = { 'On Track': 0, 'Delayed': 0, 'Completed': 0 };
+            projects.forEach(p => statusCounts[p.status]++);
+
+            const ctx = document.getElementById('statusChart').getContext('2d');
+            
+            if (statusChartInstance) statusChartInstance.destroy();
+
+            statusChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(statusCounts),
+                    datasets: [{
+                        data: Object.values(statusCounts),
+                        backgroundColor: ['#ED1C24', '#F97316', '#10B981'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } },
+                    cutout: '70%'
+                }
+            });
         }
 
         async function deleteProject(id) {
@@ -109,7 +165,7 @@
                 status: document.getElementById('status').value,
                 start_date: document.getElementById('start_date').value,
                 end_date: document.getElementById('end_date').value,
-                progress: 0
+                progress: document.getElementById('progress').value
             };
             await fetch('/projects', {
                 method: 'POST',
@@ -125,7 +181,7 @@
             const teams = await res.json();
             const options = teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
             document.getElementById('team_id').innerHTML = options;
-            document.getElementById('teamFilter').innerHTML += options; // Add to filter too
+            document.getElementById('teamFilter').innerHTML += options;
         }
 
         loadTeams();
