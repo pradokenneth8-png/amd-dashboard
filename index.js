@@ -16,7 +16,6 @@ const pool = new Pool({
 
 // --- AUTHENTICATION ---
 
-// Login Route
 app.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -29,7 +28,6 @@ app.post('/login', async (req, res) => {
   } catch (err) { res.status(500).send(err.message); }
 });
 
-// Signup Route
 app.post('/register', async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -44,43 +42,77 @@ app.post('/register', async (req, res) => {
 // --- CORE DATA ---
 
 app.get('/teams', async (req, res) => {
-  const result = await pool.query('SELECT * FROM teams ORDER BY id ASC');
-  res.json(result.rows);
+  try {
+    const result = await pool.query('SELECT * FROM teams ORDER BY id ASC');
+    res.json(result.rows);
+  } catch (err) { res.status(500).send(err.message); }
 });
 
 app.get('/projects', async (req, res) => {
-  const { team_id, status } = req.query;
-  let query = 'SELECT p.*, t.name as team_name FROM projects p JOIN teams t ON p.team_id = t.id';
-  let params = [];
-  let conditions = [];
-  if (team_id && team_id !== "all") { params.push(team_id); conditions.push(`p.team_id = $${params.length}`); }
-  if (status && status !== "all") { params.push(status); conditions.push(`p.status = $${params.length}`); }
-  if (conditions.length > 0) query += ' WHERE ' + conditions.join(' AND ');
-  query += ' ORDER BY p.id DESC';
-  const result = await pool.query(query, params);
-  res.json(result.rows);
+  try {
+    const { team_id, status } = req.query;
+    let query = 'SELECT p.*, t.name as team_name FROM projects p JOIN teams t ON p.team_id = t.id';
+    let params = [];
+    let conditions = [];
+    if (team_id && team_id !== "all") { params.push(team_id); conditions.push(`p.team_id = $${params.length}`); }
+    if (status && status !== "all") { params.push(status); conditions.push(`p.status = $${params.length}`); }
+    if (conditions.length > 0) query += ' WHERE ' + conditions.join(' AND ');
+    query += ' ORDER BY p.id DESC';
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) { res.status(500).send(err.message); }
+});
+
+// --- AUDIT HISTORY ROUTE ---
+app.get('/logs', async (req, res) => {
+  try {
+    // This joins with projects so we can see the NAME of the project in the history
+    const result = await pool.query(`
+      SELECT al.*, p.name as project_name 
+      FROM audit_logs al 
+      LEFT JOIN projects p ON al.project_id = p.id 
+      ORDER BY al.timestamp DESC LIMIT 50
+    `);
+    res.json(result.rows);
+  } catch (err) { res.status(500).send(err.message); }
 });
 
 app.post('/projects', async (req, res) => {
-  const { name, team_id, secondary_team, status, start_date, end_date, progress, remarks, user } = req.body;
-  const result = await pool.query(
-    'INSERT INTO projects (name, team_id, secondary_team, status, start_date, end_date, progress, remarks) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *', 
-    [name, team_id, secondary_team, status, start_date, end_date, progress, remarks]
-  );
-  await pool.query('INSERT INTO audit_logs (project_id, action, changed_by) VALUES ($1, $2, $3)', [result.rows[0].id, `Created by ${user}`, user]);
-  res.json(result.rows[0]);
+  try {
+    const { name, team_id, secondary_team, status, start_date, end_date, progress, remarks, user } = req.body;
+    const result = await pool.query(
+      'INSERT INTO projects (name, team_id, secondary_team, status, start_date, end_date, progress, remarks) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *', 
+      [name, team_id, secondary_team, status, start_date, end_date, progress, remarks]
+    );
+    // Log the creation
+    await pool.query('INSERT INTO audit_logs (project_id, action, changed_by) VALUES ($1, $2, $3)', 
+      [result.rows[0].id, `Created project: ${name}`, user || 'Anonymous']);
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).send(err.message); }
 });
 
 app.put('/projects/:id', async (req, res) => {
-  const { name, progress, status, secondary_team, remarks, user } = req.body;
-  await pool.query('UPDATE projects SET name=$1, progress=$2, status=$3, secondary_team=$4, remarks=$5 WHERE id=$6', [name, progress, status, secondary_team, remarks, req.params.id]);
-  await pool.query('INSERT INTO audit_logs (project_id, action, changed_by) VALUES ($1, $2, $3)', [req.params.id, `Updated by ${user}`, user]);
-  res.json({ message: "Updated" });
+  try {
+    const { name, progress, status, secondary_team, remarks, user } = req.body;
+    await pool.query('UPDATE projects SET name=$1, progress=$2, status=$3, secondary_team=$4, remarks=$5 WHERE id=$6', 
+      [name, progress, status, secondary_team, remarks, req.params.id]);
+    // Log the update
+    await pool.query('INSERT INTO audit_logs (project_id, action, changed_by) VALUES ($1, $2, $3)', 
+      [req.params.id, `Updated: ${progress}% progress, status ${status}`, user || 'Anonymous']);
+    res.json({ message: "Updated" });
+  } catch (err) { res.status(500).send(err.message); }
 });
 
 app.delete('/projects/:id', async (req, res) => {
-  await pool.query('DELETE FROM projects WHERE id = $1', [req.params.id]);
-  res.json({ message: "Deleted" });
+  try {
+    const projectId = req.params.id;
+    // Log before deleting so we know what was lost
+    await pool.query('INSERT INTO audit_logs (project_id, action, changed_by) VALUES ($1, $2, $3)', 
+      [projectId, `Deleted project ID: ${projectId}`, 'admin']);
+    
+    await pool.query('DELETE FROM projects WHERE id = $1', [projectId]);
+    res.json({ message: "Deleted" });
+  } catch (err) { res.status(500).send(err.message); }
 });
 
-app.listen(port, () => console.log(`Server running on ${port}`));
+app.listen(port, () => console.log(`AMD Enterprise Server running on ${port}`));
