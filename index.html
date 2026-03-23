@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AMD Enterprise Dashboard</title>
+    <title>AMD Enterprise Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.css">
@@ -11,113 +11,81 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
-    
     <style>
         :root { --amd-red: #ED1C24; }
         .bg-amd { background-color: var(--amd-red); }
-        .gantt .bar-progress { fill: var(--amd-red) !important; }
-        
-        /* PULSING RED ALERT */
-        @keyframes pulse-red {
-            0% { background-color: #fff; }
-            50% { background-color: #fee2e2; }
-            100% { background-color: #fff; }
-        }
-        .delayed-alert {
-            animation: pulse-red 2s infinite;
-            border-left: 5px solid var(--amd-red) !important;
-        }
-
-        #main-app { display: none; } /* Hidden until login */
+        #main-app { display: none; }
+        @keyframes pulse-red { 0%, 100% { background-color: #fff; } 50% { background-color: #fee2e2; } }
+        .delayed-alert { animation: pulse-red 2s infinite; border-left: 5px solid var(--amd-red) !important; }
     </style>
 </head>
 <body class="bg-gray-100 font-sans text-gray-900">
 
 <div id="login-page" class="fixed inset-0 bg-black flex items-center justify-center z-[100]">
     <div class="bg-white p-10 rounded-2xl shadow-2xl max-w-sm w-full text-center">
-        <h1 class="text-2xl font-black italic uppercase mb-6 tracking-tighter">AMD Security Access</h1>
+        <h1 id="auth-title" class="text-2xl font-black italic uppercase mb-6 tracking-tighter">AMD Access</h1>
         <div class="space-y-4">
-            <input type="text" id="username" placeholder="Username" class="w-full p-3 border rounded-lg bg-gray-50">
-            <input type="password" id="password" placeholder="Password" class="w-full p-3 border rounded-lg bg-gray-50">
-            <button onclick="handleLogin()" class="w-full bg-amd text-white py-3 rounded-lg font-bold uppercase shadow-lg shadow-red-200 hover:bg-red-700 transition">Unlock Dashboard</button>
+            <input type="text" id="username" placeholder="Username" class="w-full p-3 border rounded-lg bg-gray-50 text-sm">
+            <input type="password" id="password" placeholder="Password" class="w-full p-3 border rounded-lg bg-gray-50 text-sm">
+            <button id="auth-btn" onclick="handleAuth()" class="w-full bg-amd text-white py-3 rounded-lg font-bold uppercase shadow-lg hover:bg-red-700 transition">Unlock Dashboard</button>
         </div>
-        <p id="login-error" class="text-red-500 text-xs mt-4 hidden">Invalid credentials. Access denied.</p>
+        <div class="mt-6 pt-4 border-t border-gray-100">
+            <p id="auth-toggle-text" class="text-xs text-gray-400">Don't have an account?</p>
+            <button onclick="toggleAuthMode()" id="auth-toggle-btn" class="text-amd font-bold text-xs uppercase hover:underline">Create Account</button>
+        </div>
+        <p id="login-error" class="text-red-500 text-[10px] mt-4 font-bold uppercase hidden"></p>
     </div>
 </div>
 
 <div id="main-app">
-    <div id="loadingScreen" class="fixed inset-0 bg-gray-900 z-50 flex flex-col justify-center items-center text-white">
-        <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-[#ED1C24] mb-4"></div>
-        <h2 class="text-xl font-bold">Waking up AMD Server...</h2>
-        <p class="text-gray-400">Loading projects...</p>
-    </div>
-
     <header class="bg-black text-white p-4 shadow-xl border-b-4 border-amd sticky top-0 z-50">
         <div class="container mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
             <h1 class="text-xl font-black italic tracking-tighter uppercase">Asset Management Department</h1>
             <div class="flex flex-wrap gap-2">
-                <select id="statusFilter" onchange="loadData()" class="bg-gray-900 border border-gray-700 rounded px-3 py-1 text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-500">
+                <select id="statusFilter" onchange="loadData()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold">
                     <option value="all">ALL STATUS</option>
                     <option value="On Track">ON TRACK</option>
                     <option value="Delayed">DELAYED</option>
                     <option value="Completed">COMPLETED</option>
                 </select>
-                <select id="teamFilter" onchange="loadData()" class="bg-gray-900 border border-gray-700 rounded px-3 py-1 text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-500">
+                <select id="teamFilter" onchange="loadData()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold">
                     <option value="all">ALL TEAMS</option>
                 </select>
-                <select id="sortOrder" onchange="loadData()" class="bg-gray-900 border border-gray-700 rounded px-3 py-1 text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-500">
-                    <option value="asc">SORT A-Z</option>
-                    <option value="desc">SORT Z-A</option>
-                </select>
-                <button onclick="exportToPDF()" class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-1 rounded-full font-bold text-[10px] transition">📊 REPORT</button>
-                <button onclick="openModal()" class="bg-amd hover:bg-red-700 text-white px-4 py-1 rounded-full font-bold text-[10px] transition">+ NEW</button>
-                <button onclick="logout()" class="text-gray-500 hover:text-white text-[10px] font-bold uppercase ml-2">Logout</button>
+                <button onclick="exportToPDF()" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-full font-bold text-[10px]">📊 REPORT</button>
+                <button onclick="openModal()" class="bg-amd hover:bg-red-700 text-white px-3 py-1 rounded-full font-bold text-[10px]">+ NEW</button>
+                <button onclick="location.reload()" class="text-gray-500 hover:text-white text-[10px] font-bold uppercase">Logout</button>
             </div>
         </div>
     </header>
 
     <main class="container mx-auto p-4 space-y-6">
         <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            <div class="space-y-6">
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col items-center min-h-[250px]">
+            <div class="space-y-4">
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                     <h2 class="text-[10px] font-bold text-gray-400 uppercase mb-4">Portfolio Health</h2>
-                    <div class="w-full h-40 flex items-center justify-center">
-                        <canvas id="statusChart"></canvas>
-                    </div>
+                    <div class="h-40 flex items-center justify-center"><canvas id="statusChart"></canvas></div>
                 </div>
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col items-center min-h-[250px]">
-                    <h2 class="text-[10px] font-bold text-gray-400 uppercase mb-4">Workload Heatmap</h2>
-                    <div class="w-full h-40">
-                        <canvas id="heatmapChart"></canvas>
-                    </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                    <h2 class="text-[10px] font-bold text-gray-400 uppercase mb-4">Team Workload</h2>
+                    <div class="h-40"><canvas id="heatmapChart"></canvas></div>
                 </div>
             </div>
-
-            <div class="lg:col-span-3 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
-                <div class="max-h-[550px] overflow-y-auto overflow-x-auto flex-grow">
+            <div class="lg:col-span-3 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div class="max-h-[500px] overflow-auto">
                     <table class="w-full text-left text-sm">
-                        <thead class="bg-gray-50 text-gray-400 text-[10px] font-bold uppercase sticky top-0 z-10">
-                            <tr>
-                                <th class="p-4">Project</th>
-                                <th class="p-4">Team</th>
-                                <th class="p-4">Sec. Team</th>
-                                <th class="p-4">Status</th>
-                                <th class="p-4 w-32">Progress</th>
-                                <th class="p-4">Remarks</th>
-                                <th class="p-4">Actions</th>
-                            </tr>
+                        <thead class="bg-gray-50 text-gray-400 text-[10px] font-bold uppercase sticky top-0">
+                            <tr><th class="p-4">Project</th><th class="p-4">Team</th><th class="p-4">Sec. Team</th><th class="p-4">Status</th><th class="p-4">Progress</th><th class="p-4">Remarks</th><th class="p-4">Actions</th></tr>
                         </thead>
                         <tbody id="project-list-rows" class="divide-y divide-gray-100"></tbody>
                     </table>
                 </div>
-                <div class="flex justify-between items-center p-4 bg-gray-50 border-t border-gray-200">
-                   <button id="prevBtn" onclick="changePage(-1)" class="px-4 py-1.5 bg-gray-200 text-gray-700 rounded-lg font-bold text-[10px] uppercase disabled:opacity-30">Previous</button>
-                   <span id="pageInfo" class="font-bold text-[10px] text-gray-400 uppercase">Page 1</span>
-                   <button id="nextBtn" onclick="changePage(1)" class="px-4 py-1.5 bg-black text-white rounded-lg font-bold text-[10px] uppercase disabled:opacity-30">Next</button>
+                <div class="flex justify-between items-center p-3 bg-gray-50 border-t border-gray-200">
+                    <button id="prevBtn" onclick="changePage(-1)" class="px-3 py-1 bg-gray-200 text-gray-700 rounded text-[10px] font-bold uppercase disabled:opacity-30">Prev</button>
+                    <span id="pageInfo" class="text-[10px] text-gray-400 font-bold uppercase">Page 1</span>
+                    <button id="nextBtn" onclick="changePage(1)" class="px-3 py-1 bg-black text-white rounded text-[10px] font-bold uppercase disabled:opacity-30">Next</button>
                 </div>
             </div>
         </div>
-
         <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
             <h2 class="text-xs font-bold text-gray-400 uppercase mb-4">Gantt Performance</h2>
             <div id="gantt"></div>
@@ -126,317 +94,156 @@
 
     <div id="modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
         <div class="bg-white rounded-2xl p-8 max-w-md w-full">
-            <h2 id="modalTitle" class="text-xl font-bold mb-6 italic uppercase tracking-tighter">New Entry</h2>
+            <h2 id="modalTitle" class="text-xl font-bold mb-6 italic uppercase tracking-tighter">Project Entry</h2>
             <form id="projectForm" class="space-y-4">
                 <input type="hidden" id="edit-id">
-                <div class="space-y-1">
-                    <label class="text-[10px] font-bold text-gray-400 uppercase">Project Title</label>
-                    <input type="text" id="name" class="w-full p-2 border rounded bg-gray-50 text-sm" required>
-                </div>
-                <div id="full-inputs">
-                    <div class="space-y-1">
-                        <label class="text-[10px] font-bold text-gray-400 uppercase">Primary Team</label>
-                        <select id="team_id" class="w-full p-2 border rounded bg-gray-50 text-sm"></select>
-                    </div>
-                    <div class="grid grid-cols-2 gap-4 mt-2">
-                        <div class="space-y-1">
-                            <label class="text-[10px] font-bold text-gray-400 uppercase">Start Date</label>
-                            <input type="date" id="start_date" class="w-full p-2 border rounded bg-gray-50 text-sm">
-                        </div>
-                        <div class="space-y-1">
-                            <label class="text-[10px] font-bold text-gray-400 uppercase">End Date</label>
-                            <input type="date" id="end_date" class="w-full p-2 border rounded bg-gray-50 text-sm">
-                        </div>
+                <input type="text" id="name" placeholder="Project Name" class="w-full p-2 border rounded bg-gray-50 text-sm" required>
+                <div id="full-inputs" class="space-y-4">
+                    <select id="team_id" class="w-full p-2 border rounded bg-gray-50 text-sm"></select>
+                    <div class="grid grid-cols-2 gap-2">
+                        <input type="date" id="start_date" class="w-full p-2 border rounded bg-gray-50 text-sm">
+                        <input type="date" id="end_date" class="w-full p-2 border rounded bg-gray-50 text-sm">
                     </div>
                 </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="space-y-1">
-                        <label class="text-[10px] font-bold text-gray-400 uppercase">Progress (0-100%)</label>
-                        <input type="number" id="progress" min="0" max="100" class="w-full p-2 border rounded bg-gray-50 text-sm" required>
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-[10px] font-bold text-gray-400 uppercase">Secondary Team</label>
-                        <input type="text" id="secondaryTeam" placeholder="Optional" class="w-full p-2 border rounded bg-gray-50 text-sm">
-                    </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <input type="number" id="progress" placeholder="Progress %" min="0" max="100" class="w-full p-2 border rounded bg-gray-50 text-sm" required>
+                    <input type="text" id="secondaryTeam" placeholder="Sec. Team" class="w-full p-2 border rounded bg-gray-50 text-sm">
                 </div>
-                <div class="space-y-1">
-                    <label class="text-[10px] font-bold text-gray-400 uppercase">Status</label>
-                    <select id="status" class="w-full p-2 border rounded bg-gray-50 text-sm">
-                        <option>On Track</option>
-                        <option>Delayed</option>
-                        <option>Completed</option>
-                    </select>
-                </div>
-                <div class="space-y-1">
-                    <label class="text-[10px] font-bold text-gray-400 uppercase">Remarks / Delay Reason</label>
-                    <textarea id="projectRemarks" rows="2" class="w-full p-2 border rounded bg-gray-50 text-sm"></textarea>
-                </div>
+                <select id="status" class="w-full p-2 border rounded bg-gray-50 text-sm">
+                    <option>On Track</option><option>Delayed</option><option>Completed</option>
+                </select>
+                <textarea id="projectRemarks" placeholder="Remarks" rows="2" class="w-full p-2 border rounded bg-gray-50 text-sm"></textarea>
                 <div class="flex gap-3 pt-4">
-                    <button type="button" onclick="closeModal()" class="flex-1 text-gray-400 font-bold text-xs uppercase hover:text-black transition">Cancel</button>
-                    <button type="submit" class="flex-1 bg-amd text-white py-3 rounded-lg font-bold text-xs uppercase shadow-lg shadow-red-200">Save Project</button>
+                    <button type="button" onclick="closeModal()" class="flex-1 text-gray-400 font-bold text-xs uppercase">Cancel</button>
+                    <button type="submit" class="flex-1 bg-amd text-white py-3 rounded-lg font-bold text-xs uppercase shadow-lg">Save</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-    <script>
-        let statusChartInstance = null;
-        let heatmapChartInstance = null;
-        let allProjects = []; 
-        let currentPage = 1;
-        let currentUser = null;
+<script>
+    let statusChartInstance, heatmapChartInstance, allProjects = [], currentPage = 1, currentUser = null, isLoginMode = true;
 
-        // --- SECURITY ---
-        function handleLogin() {
-            const user = document.getElementById('username').value;
-            const pass = document.getElementById('password').value;
-            if (user === 'admin' && pass === 'amd123') {
-                currentUser = user;
-                document.getElementById('login-page').style.display = 'none';
-                document.getElementById('main-app').style.display = 'block';
-                init();
-            } else {
-                document.getElementById('login-error').classList.remove('hidden');
-            }
-        }
+    function toggleAuthMode() {
+        isLoginMode = !isLoginMode;
+        document.getElementById('auth-title').innerText = isLoginMode ? "AMD Access" : "Join AMD Portal";
+        document.getElementById('auth-btn').innerText = isLoginMode ? "Unlock Dashboard" : "Create Account";
+        document.getElementById('auth-toggle-btn').innerText = isLoginMode ? "Create Account" : "Back to Login";
+    }
 
-        function logout() { location.reload(); }
-
-        // --- DATA HANDLING ---
-        async function loadData() {
-            const team = document.getElementById('teamFilter').value;
-            const status = document.getElementById('statusFilter').value;
-            const res = await fetch(`/projects?team_id=${team}&status=${status}`);
-            const projects = await res.json();
-            
-            document.getElementById('loadingScreen').style.display = 'none';
-            
-            allProjects = projects;
-            renderTable();
-            updateChart(projects);
-            renderHeatmap(projects);
-            renderGantt(projects);
-        }
-
-        // --- PHASE 3: HEATMAP ---
-        function renderHeatmap(projects) {
-            const teamCounts = {};
-            projects.forEach(p => {
-                teamCounts[p.team_name] = (teamCounts[p.team_name] || 0) + 1;
-            });
-
-            const ctx = document.getElementById('heatmapChart').getContext('2d');
-            if (heatmapChartInstance) heatmapChartInstance.destroy();
-
-            heatmapChartInstance = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: Object.keys(teamCounts),
-                    datasets: [{
-                        label: 'Projects',
-                        data: Object.values(teamCounts),
-                        backgroundColor: '#ED1C24'
-                    }]
-                },
-                options: {
-                    indexAxis: 'y',
-                    plugins: { legend: { display: false } },
-                    scales: { x: { beginAtZero: true, grid: { display: false } } }
-                }
-            });
-        }
-
-        function updateChart(projects) {
-            const counts = { 'On Track': 0, 'Delayed': 0, 'Completed': 0 };
-            projects.forEach(p => counts[p.status]++);
-            const total = projects.length;
-            const ctx = document.getElementById('statusChart').getContext('2d');
-            if (statusChartInstance) statusChartInstance.destroy();
-            Chart.register(ChartDataLabels);
-
-            statusChartInstance = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: Object.keys(counts),
-                    datasets: [{
-                        data: Object.values(counts),
-                        backgroundColor: ['#3B82F6', '#ED1C24', '#10B981'],
-                        borderWidth: 2,
-                        borderColor: '#ffffff'
-                    }]
-                },
-                options: {
-                    cutout: '70%',
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        datalabels: {
-                            color: '#fff',
-                            font: { weight: 'bold', size: 11 },
-                            formatter: (value) => {
-                                if (value === 0 || total === 0) return null;
-                                return ((value / total) * 100).toFixed(0) + "%";
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
-        // --- PHASE 3: BOSS BUTTON (PDF) ---
-        function exportToPDF() {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
-            
-            doc.setFontSize(18);
-            doc.text("AMD PORTFOLIO STATUS REPORT", 14, 22);
-            doc.setFontSize(10);
-            doc.text(`Generated by: ${currentUser} | Date: ${new Date().toLocaleDateString()}`, 14, 30);
-
-            const tableRows = allProjects.map(p => [
-                p.name, p.team_name, p.status, p.progress + "%", p.remarks || '-'
-            ]);
-
-            doc.autoTable({
-                startY: 40,
-                head: [['Project', 'Primary Team', 'Status', 'Progress', 'Remarks']],
-                body: tableRows,
-                headStyles: { fillColor: [237, 28, 36] }
-            });
-
-            doc.save(`AMD_Report_${new Date().getTime()}.pdf`);
-        }
-
-        function renderTable() {
-            const sortOrder = document.getElementById('sortOrder').value;
-            allProjects.sort((a, b) => sortOrder === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
-
-            const itemsPerPage = 10;
-            const startIndex = (currentPage - 1) * itemsPerPage;
-            const paginated = allProjects.slice(startIndex, startIndex + itemsPerPage);
-
-            const today = new Date();
-            const listBody = document.getElementById('project-list-rows');
-            
-            listBody.innerHTML = paginated.map(p => {
-                // --- PHASE 3: DELAYED ALERT LOGIC ---
-                const isOverdue = new Date(p.end_date) < today && p.status !== 'Completed';
-                const rowClass = isOverdue ? 'delayed-alert' : '';
-
-                return `
-                    <tr class="hover:bg-gray-50 transition ${rowClass}">
-                        <td class="p-4 font-bold text-gray-800">${p.name}</td>
-                        <td class="p-4 text-[10px] font-bold text-gray-400 uppercase">${p.team_name}</td>
-                        <td class="p-4 text-[10px] font-bold text-gray-400 uppercase">${p.secondary_team || '-'}</td>
-                        <td class="p-4">
-                            <span class="px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest
-                                ${p.status === 'On Track' ? 'bg-blue-50 text-blue-600' :
-                                p.status === 'Delayed' ? 'bg-red-50 text-red-600' :
-                                'bg-green-50 text-green-600'}">
-                                ${p.status}
-                            </span>
-                        </td>
-                        <td class="p-4">
-                            <div class="flex items-center gap-2">
-                                <div class="flex-grow bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                                    <div class="bg-amd h-full" style="width: ${p.progress}%"></div>
-                                </div>
-                                <span class="text-[10px] font-bold text-gray-400">${p.progress}%</span>
-                            </div>
-                        </td>
-                        <td class="p-4 text-[10px] text-gray-500 max-w-[120px] truncate" title="${p.remarks || ''}">${p.remarks || '-'}</td>
-                        <td class="p-4 flex gap-2">
-                            <button onclick="editProject(${p.id})" class="text-blue-500 font-bold text-[10px] uppercase hover:underline">Edit</button>
-                            <button onclick="deleteProject(${p.id})" class="text-red-500 font-bold text-[10px] uppercase hover:underline">Del</button>
-                        </td>
-                    </tr>
-                `;
-            }).join('');
-
-            document.getElementById('pageInfo').innerText = `Page ${currentPage}`;
-            document.getElementById('prevBtn').disabled = currentPage === 1;
-            document.getElementById('nextBtn').disabled = startIndex + itemsPerPage >= allProjects.length;
-        }
-
-        function changePage(dir) {
-            currentPage += dir;
-            renderTable();
-        }
-
-        function editProject(id) {
-            const p = allProjects.find(proj => proj.id === id);
-            if (!p) return;
-            document.getElementById('modalTitle').innerText = "Edit Entry";
-            document.getElementById('edit-id').value = p.id;
-            document.getElementById('name').value = p.name;
-            document.getElementById('progress').value = p.progress;
-            document.getElementById('secondaryTeam').value = p.secondary_team || '';
-            document.getElementById('projectRemarks').value = p.remarks || '';
-            document.getElementById('status').value = p.status;
-            document.getElementById('full-inputs').classList.add('hidden');
-            document.getElementById('modal').classList.remove('hidden');
-        }
-
-        function openModal() {
-            document.getElementById('modalTitle').innerText = "New Entry";
-            document.getElementById('projectForm').reset();
-            document.getElementById('edit-id').value = "";
-            document.getElementById('full-inputs').classList.remove('hidden');
-            document.getElementById('modal').classList.remove('hidden');
-        }
-
-        function closeModal() { document.getElementById('modal').classList.add('hidden'); }
-
-        document.getElementById('projectForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const id = document.getElementById('edit-id').value;
-            const data = {
-                name: document.getElementById('name').value,
-                progress: document.getElementById('progress').value,
-                status: document.getElementById('status').value,
-                secondary_team: document.getElementById('secondaryTeam').value,
-                remarks: document.getElementById('projectRemarks').value,
-                user: currentUser // --- PHASE 3: Pass user for Audit Logs ---
-            };
-            
-            if (id) {
-                await fetch(`/projects/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-            } else {
-                data.team_id = document.getElementById('team_id').value;
-                data.start_date = document.getElementById('start_date').value;
-                data.end_date = document.getElementById('end_date').value;
-                await fetch('/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-            }
-            closeModal(); 
-            loadData();
+    async function handleAuth() {
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const res = await fetch(isLoginMode ? '/login' : '/register', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
         });
+        const data = await res.json();
+        if (res.ok) {
+            if (!isLoginMode) { alert("Account Ready!"); toggleAuthMode(); }
+            else { currentUser = data.username; document.getElementById('login-page').style.display='none'; document.getElementById('main-app').style.display='block'; init(); }
+        } else { alert(data.message); }
+    }
 
-        async function deleteProject(id) { 
-            if (confirm("Delete this project?")) { 
-                await fetch(`/projects/${id}`, { method: 'DELETE' }); 
-                loadData(); 
-            } 
-        }
+    async function loadData() {
+        const team = document.getElementById('teamFilter').value;
+        const status = document.getElementById('statusFilter').value;
+        const res = await fetch(`/projects?team_id=${team}&status=${status}`);
+        allProjects = await res.json();
+        renderTable(); updateChart(); renderHeatmap(); renderGantt();
+    }
 
-        function renderGantt(projects) {
-            const container = document.getElementById('gantt');
-            container.innerHTML = "";
-            if (projects.length > 0) {
-                const tasks = projects.map(p => ({ id: p.id.toString(), name: p.name, start: p.start_date.split('T')[0], end: p.end_date.split('T')[0], progress: p.progress }));
-                new Gantt("#gantt", tasks, { view_mode: 'Week', bar_height: 20 });
-            }
-        }
+    function renderTable() {
+        const start = (currentPage - 1) * 10;
+        const paginated = allProjects.slice(start, start + 10);
+        const today = new Date();
+        document.getElementById('project-list-rows').innerHTML = paginated.map(p => {
+            const overdue = new Date(p.end_date) < today && p.status !== 'Completed';
+            return `<tr class="${overdue ? 'delayed-alert' : ''} hover:bg-gray-50 transition">
+                <td class="p-4 font-bold text-gray-800">${p.name}</td>
+                <td class="p-4 text-[10px] font-bold text-gray-400">${p.team_name}</td>
+                <td class="p-4 text-[10px] font-bold text-gray-400">${p.secondary_team || '-'}</td>
+                <td class="p-4"><span class="px-2 py-1 rounded text-[9px] font-black uppercase ${p.status === 'On Track' ? 'bg-blue-50 text-blue-600' : p.status === 'Delayed' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}">${p.status}</span></td>
+                <td class="p-4"><div class="flex items-center gap-2"><div class="flex-grow bg-gray-100 rounded-full h-1.5 overflow-hidden"><div class="bg-amd h-full" style="width: ${p.progress}%"></div></div><span class="text-[10px] font-bold text-gray-400">${p.progress}%</span></div></td>
+                <td class="p-4 text-[10px] text-gray-500 max-w-[120px] truncate" title="${p.remarks || ''}">${p.remarks || '-'}</td>
+                <td class="p-4 flex gap-2"><button onclick="editProject(${p.id})" class="text-blue-500 font-bold text-[10px]">Edit</button><button onclick="deleteProject(${p.id})" class="text-red-500 font-bold text-[10px]">Del</button></td>
+            </tr>`;
+        }).join('');
+        document.getElementById('pageInfo').innerText = `Page ${currentPage}`;
+        document.getElementById('nextBtn').disabled = start + 10 >= allProjects.length;
+        document.getElementById('prevBtn').disabled = currentPage === 1;
+    }
 
-        async function init() {
-            const res = await fetch('/teams');
-            const teams = await res.json();
-            const opts = teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
-            document.getElementById('team_id').innerHTML = opts;
-            document.getElementById('teamFilter').innerHTML += opts;
-            loadData();
+    function updateChart() {
+        const counts = { 'On Track': 0, 'Delayed': 0, 'Completed': 0 };
+        allProjects.forEach(p => counts[p.status]++);
+        const ctx = document.getElementById('statusChart').getContext('2d');
+        if (statusChartInstance) statusChartInstance.destroy();
+        Chart.register(ChartDataLabels);
+        statusChartInstance = new Chart(ctx, {
+            type: 'doughnut', data: { labels: Object.keys(counts), datasets: [{ data: Object.values(counts), backgroundColor: ['#3B82F6', '#ED1C24', '#10B981'], borderWidth: 2, borderColor: '#fff' }] },
+            options: { cutout: '70%', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, datalabels: { color: '#fff', font: { weight: 'bold', size: 10 }, formatter: (v) => v ? Math.round((v/allProjects.length)*100)+'%' : null } } }
+        });
+    }
+
+    function renderHeatmap() {
+        const teamCounts = {};
+        allProjects.forEach(p => teamCounts[p.team_name] = (teamCounts[p.team_name] || 0) + 1);
+        const ctx = document.getElementById('heatmapChart').getContext('2d');
+        if (heatmapChartInstance) heatmapChartInstance.destroy();
+        heatmapChartInstance = new Chart(ctx, {
+            type: 'bar', data: { labels: Object.keys(teamCounts), datasets: [{ label: 'Workload', data: Object.values(teamCounts), backgroundColor: '#ED1C24' }] },
+            options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, grid: { display: false } } } }
+        });
+    }
+
+    function exportToPDF() {
+        const { jsPDF } = window.jspdf; const doc = new jsPDF();
+        doc.setFontSize(18); doc.text("AMD STATUS REPORT", 14, 20);
+        doc.autoTable({ startY: 30, head: [['Project', 'Team', 'Status', 'Progress']], body: allProjects.map(p => [p.name, p.team_name, p.status, p.progress + "%"]), headStyles: { fillColor: [237, 28, 36] } });
+        doc.save("AMD_Report.pdf");
+    }
+
+    function editProject(id) {
+        const p = allProjects.find(x => x.id === id);
+        if (!p) return;
+        document.getElementById('modalTitle').innerText = "Edit Entry";
+        document.getElementById('edit-id').value = p.id;
+        document.getElementById('name').value = p.name;
+        document.getElementById('progress').value = p.progress;
+        document.getElementById('secondaryTeam').value = p.secondary_team || '';
+        document.getElementById('projectRemarks').value = p.remarks || '';
+        document.getElementById('status').value = p.status;
+        document.getElementById('full-inputs').classList.add('hidden');
+        document.getElementById('modal').classList.remove('hidden');
+    }
+
+    document.getElementById('projectForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('edit-id').value;
+        const data = { name: document.getElementById('name').value, progress: document.getElementById('progress').value, status: document.getElementById('status').value, secondary_team: document.getElementById('secondaryTeam').value, remarks: document.getElementById('projectRemarks').value, user: currentUser };
+        if (id) await fetch(`/projects/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+        else {
+            data.team_id = document.getElementById('team_id').value;
+            data.start_date = document.getElementById('start_date').value;
+            data.end_date = document.getElementById('end_date').value;
+            await fetch('/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
         }
-    </script>
+        closeModal(); loadData();
+    });
+
+    async function init() {
+        const res = await fetch('/teams');
+        const teams = await res.json();
+        const opts = teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+        document.getElementById('team_id').innerHTML = opts;
+        document.getElementById('teamFilter').innerHTML += opts;
+        loadData();
+    }
+    function openModal() { document.getElementById('projectForm').reset(); document.getElementById('edit-id').value = ""; document.getElementById('full-inputs').classList.remove('hidden'); document.getElementById('modal').classList.remove('hidden'); }
+    function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+    function changePage(dir) { currentPage += dir; renderTable(); }
+</script>
 </body>
 </html>
