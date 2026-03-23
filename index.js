@@ -14,7 +14,7 @@ const pool = new Pool({
   connectionString: 'postgresql://neondb_owner:npg_Szu1CKI8pqYN@ep-delicate-dawn-a1thm5ic-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require',
 });
 
-// Get Teams
+// --- TEAMS ---
 app.get('/teams', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM teams ORDER BY id ASC');
@@ -22,7 +22,7 @@ app.get('/teams', async (req, res) => {
   } catch (err) { res.status(500).send(err.message); }
 });
 
-// Get Projects with Filters
+// --- PROJECTS (With Filters) ---
 app.get('/projects', async (req, res) => {
   try {
     const { team_id, status } = req.query;
@@ -48,35 +48,79 @@ app.get('/projects', async (req, res) => {
   } catch (err) { res.status(500).send(err.message); }
 });
 
-// Create Project
+// --- AUDIT LOGS (Project History) ---
+app.get('/logs', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT al.*, p.name as project_name 
+      FROM audit_logs al 
+      LEFT JOIN projects p ON al.project_id = p.id 
+      ORDER BY al.timestamp DESC LIMIT 50
+    `);
+    res.json(result.rows);
+  } catch (err) { res.status(500).send(err.message); }
+});
+
+// --- CREATE PROJECT (With Logging) ---
 app.post('/projects', async (req, res) => {
   try {
-    const { name, team_id, secondary_team, status, start_date, end_date, progress, remarks } = req.body;
+    const { name, team_id, secondary_team, status, start_date, end_date, progress, remarks, user } = req.body;
+    
+    // 1. Insert Project
     const result = await pool.query(
       'INSERT INTO projects (name, team_id, secondary_team, status, start_date, end_date, progress, remarks) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *', 
       [name, team_id, secondary_team, status, start_date, end_date, progress, remarks]
     );
-    res.json(result.rows[0]);
+    
+    const newProject = result.rows[0];
+
+    // 2. Log Creation
+    await pool.query(
+      'INSERT INTO audit_logs (project_id, action, changed_by) VALUES ($1, $2, $3)',
+      [newProject.id, `Created project: ${name}`, user || 'admin']
+    );
+
+    res.json(newProject);
   } catch (err) { res.status(500).send(err.message); }
 });
 
-// Update Project
+// --- UPDATE PROJECT (With Logging) ---
 app.put('/projects/:id', async (req, res) => {
   try {
-    const { name, progress, status, secondary_team, remarks } = req.body;
+    const { name, progress, status, secondary_team, remarks, user } = req.body;
+    const projectId = req.params.id;
+
+    // 1. Update Project
     await pool.query(
       'UPDATE projects SET name = $1, progress = $2, status = $3, secondary_team = $4, remarks = $5 WHERE id = $6', 
-      [name, progress, status, secondary_team, remarks, req.params.id]
+      [name, progress, status, secondary_team, remarks, projectId]
     );
-    res.json({ message: "Updated!" });
+
+    // 2. Log Update
+    await pool.query(
+      'INSERT INTO audit_logs (project_id, action, changed_by) VALUES ($1, $2, $3)',
+      [projectId, `Updated progress to ${progress}% and status to ${status}`, user || 'admin']
+    );
+
+    res.json({ message: "Updated and Logged!" });
   } catch (err) { res.status(500).send(err.message); }
 });
 
-// Delete Project
+// --- DELETE PROJECT (With Logging) ---
 app.delete('/projects/:id', async (req, res) => {
   try {
-    await pool.query('DELETE FROM projects WHERE id = $1', [req.params.id]);
-    res.json({ message: "Deleted!" });
+    const projectId = req.params.id;
+
+    // 1. Log Deletion (Do this BEFORE deleting so the ID still exists in logs)
+    await pool.query(
+      'INSERT INTO audit_logs (project_id, action, changed_by) VALUES ($1, $2, $3)',
+      [projectId, `Deleted project ID: ${projectId}`, 'admin']
+    );
+
+    // 2. Delete Project
+    await pool.query('DELETE FROM projects WHERE id = $1', [projectId]);
+    
+    res.json({ message: "Deleted and Logged!" });
   } catch (err) { res.status(500).send(err.message); }
 });
 
