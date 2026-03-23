@@ -15,6 +15,11 @@
     </style>
 </head>
 <body class="bg-gray-100 font-sans text-gray-900">
+<div id="loadingScreen" class="fixed inset-0 bg-gray-900 z-50 flex flex-col justify-center items-center text-white">
+    <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-[#ED1C24] mb-4"></div>
+    <h2 class="text-xl font-bold">Waking up AMD Server...</h2>
+    <p class="text-gray-400">Loading projects...</p>
+</div>
 
     <header class="bg-black text-white p-4 shadow-xl border-b-4 border-amd sticky top-0 z-50">
         <div class="container mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
@@ -29,6 +34,10 @@
                 <select id="teamFilter" onchange="loadData()" class="bg-gray-900 border border-gray-700 rounded px-3 py-1 text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-500">
                     <option value="all">ALL TEAMS</option>
                 </select>
+                <select id="sortOrder" onchange="loadData()" class="bg-gray-900 border border-gray-700 rounded px-3 py-1 text-sm text-white focus:outline-none">
+                    <option value="asc">Sort A-Z</option>
+                    <option value="desc">Sort Z-A</option>
+                </select>
                 <button onclick="openModal()" class="bg-amd hover:bg-red-700 text-white px-4 py-1 rounded-full font-bold text-[10px] transition">+ NEW</button>
             </div>
         </div>
@@ -36,25 +45,32 @@
 
     <main class="container mx-auto p-4 space-y-6">
         <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col items-center justify-center">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col items-center justify-start self-start">
                 <h2 class="text-[10px] font-bold text-gray-400 uppercase mb-2">Portfolio Health</h2>
                 <div class="w-32 h-32"><canvas id="statusChart"></canvas></div>
             </div>
 
             <div class="lg:col-span-3 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div class="overflow-x-auto">
+                <div class="max-h-[500px] overflow-y-auto overflow-x-auto">
                     <table class="w-full text-left text-sm">
                         <thead class="bg-gray-50 text-gray-400 text-[10px] font-bold uppercase">
                             <tr>
                                 <th class="p-4">Project</th>
                                 <th class="p-4">Team</th>
-                                <th class="p-4 w-48">Progress</th>
+                                <th class="p-4">Sec. Team</th>
                                 <th class="p-4">Status</th>
-                                <th class="p-4 text-right">Actions</th>
+                                <th class="p-4 w-32">Progress</th>
+                                <th class="p-4">Remarks</th>
+                                <th class="p-4">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="project-list-rows"></tbody>
                     </table>
+                </div>
+                <div class="flex justify-between items-center p-4 bg-gray-50 border-t border-gray-200">
+                   <button id="prevBtn" class="px-4 py-2 bg-gray-300 text-gray-700 rounded disabled:opacity-50">Previous 10</button>
+                   <span id="pageInfo" class="font-bold text-sm text-gray-600">Page 1</span>
+                   <button id="nextBtn" class="px-4 py-2 bg-[#ED1C24] text-white rounded disabled:opacity-50">Next 10</button>
                 </div>
             </div>
         </div>
@@ -78,10 +94,20 @@
                         <input type="date" id="end_date" class="w-full p-2 border rounded">
                     </div>
                 </div>
+                
                 <div class="mt-2">
-                    <label class="text-[10px] font-bold text-gray-400 uppercase">Progress (<span id="prog-val">0</span>%)</label>
-                    <input type="range" id="progress" min="0" max="100" class="w-full h-2 bg-gray-200 rounded-lg appearance-none accent-red-600" oninput="document.getElementById('prog-val').innerText = this.value">
+                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Progress (0-100)</label>
+                    <input type="number" id="progress" min="0" max="100" class="w-full p-2 border rounded text-sm" required>
                 </div>
+                <div class="mt-2">
+                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Secondary Team (Optional)</label>
+                    <input type="text" id="secondaryTeam" placeholder="e.g., RMCD" class="w-full p-2 border rounded text-sm">
+                </div>
+                <div class="mt-2">
+                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Remarks / Delays</label>
+                    <textarea id="projectRemarks" rows="2" placeholder="Explain any delays..." class="w-full p-2 border rounded text-sm"></textarea>
+                </div>
+
                 <select id="status" class="w-full p-2 border rounded mt-2">
                     <option>On Track</option>
                     <option>Delayed</option>
@@ -97,36 +123,19 @@
 
     <script>
         let statusChartInstance = null;
+        let allProjects = []; 
+        let currentPage = 1;
 
         async function loadData() {
             const team = document.getElementById('teamFilter').value;
             const status = document.getElementById('statusFilter').value;
-            // Fetch using both filters!
             const res = await fetch(`/projects?team_id=${team}&status=${status}`);
             const projects = await res.json();
+            document.getElementById('loadingScreen').style.display = 'none';
             
-            const listBody = document.getElementById('project-list-rows');
-            listBody.innerHTML = projects.map(p => `
-                <tr class="border-b border-gray-50 hover:bg-gray-50 transition">
-                    <td class="p-4 font-bold text-gray-800">${p.name}</td>
-                    <td class="p-4 text-gray-500 text-[10px] font-bold uppercase">${p.team_name}</td>
-                    <td class="p-4">
-                        <div class="w-full bg-gray-100 rounded-full h-1.5 mb-1">
-                            <div class="bg-amd h-1.5 rounded-full" style="width: ${p.progress}%"></div>
-                        </div>
-                        <span class="text-[9px] font-bold text-gray-400">${p.progress}% Complete</span>
-                    </td>
-                    <td class="p-4">
-                        <span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase ${p.status === 'Delayed' ? 'bg-orange-100 text-orange-600' : p.status === 'Completed' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}">
-                            ${p.status}
-                        </span>
-                    </td>
-                    <td class="p-4 text-right space-x-3">
-                        <button onclick='editProject(${JSON.stringify(p)})' class="text-blue-500 hover:underline text-[10px] font-bold uppercase">Edit</button>
-                        <button onclick="deleteProject(${p.id})" class="text-gray-300 hover:text-red-500 text-[10px] font-bold uppercase">Delete</button>
-                    </td>
-                </tr>
-            `).join('');
+            allProjects = projects;
+            currentPage = 1;
+            renderTable();
 
             updateChart(projects);
             renderGantt(projects);
@@ -147,12 +156,17 @@
             });
         }
 
-        function editProject(p) {
+        function editProject(id) {
+            // Find the project in our global array
+            const p = allProjects.find(proj => proj.id === id);
+            if (!p) return;
+
             document.getElementById('modalTitle').innerText = "Edit Project";
             document.getElementById('edit-id').value = p.id;
             document.getElementById('name').value = p.name;
             document.getElementById('progress').value = p.progress;
-            document.getElementById('prog-val').innerText = p.progress;
+            document.getElementById('secondaryTeam').value = p.secondary_team || '';
+            document.getElementById('projectRemarks').value = p.remarks || '';
             document.getElementById('status').value = p.status;
             document.getElementById('full-inputs').classList.add('hidden');
             document.getElementById('modal').classList.remove('hidden');
@@ -174,8 +188,11 @@
             const data = {
                 name: document.getElementById('name').value,
                 progress: document.getElementById('progress').value,
-                status: document.getElementById('status').value
+                status: document.getElementById('status').value,
+                secondary_team: document.getElementById('secondaryTeam').value,
+                remarks: document.getElementById('projectRemarks').value
             };
+            
             if (id) {
                 await fetch(`/projects/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
             } else {
@@ -184,17 +201,26 @@
                 data.end_date = document.getElementById('end_date').value;
                 await fetch('/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
             }
-            closeModal(); loadData();
+            closeModal(); 
+            // Re-show loading screen briefly while saving/reloading
+            document.getElementById('loadingScreen').style.display = 'flex';
+            loadData();
         });
 
-        async function deleteProject(id) { if (confirm("Delete?")) { await fetch(`/projects/${id}`, { method: 'DELETE' }); loadData(); } }
+        async function deleteProject(id) { 
+            if (confirm("Delete this project?")) { 
+                await fetch(`/projects/${id}`, { method: 'DELETE' }); 
+                loadData(); 
+            } 
+        }
 
         function renderGantt(projects) {
             const container = document.getElementById('gantt');
             container.innerHTML = "";
             if (projects.length > 0) {
                 const tasks = projects.map(p => ({ id: p.id.toString(), name: p.name, start: p.start_date.split('T')[0], end: p.end_date.split('T')[0], progress: p.progress }));
-                new Gantt("#gantt", tasks, { view_mode: 'Day', bar_height: 20 });
+                // Changed view_mode to 'Week' based on your colleagues' request
+                new Gantt("#gantt", tasks, { view_mode: 'Week', bar_height: 20 });
             }
         }
 
@@ -207,6 +233,65 @@
             loadData();
         }
         init();
+
+        // --- PAGINATION & SORTING LOGIC ---
+        function renderTable() {
+            const sortOrder = document.getElementById('sortOrder') ? document.getElementById('sortOrder').value : 'asc';
+            allProjects.sort((a, b) => sortOrder === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
+
+            const itemsPerPage = 10;
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const paginatedProjects = allProjects.slice(startIndex, endIndex);
+
+            const listBody = document.getElementById('project-list-rows');
+            listBody.innerHTML = paginatedProjects.map(p => `
+                <tr class="border-b border-gray-50 hover:bg-gray-50 transition">
+                    <td class="p-4 font-bold text-gray-800">${p.name}</td>
+                    <td class="p-4 text-gray-500 text-[10px] font-bold uppercase">${p.team_name}</td>
+                    <td class="p-4 text-gray-500 text-[10px] font-bold uppercase">${p.secondary_team || '-'}</td>
+                    <td class="p-4">
+                        <span class="px-2 py-1 rounded text-[10px] font-bold uppercase
+                            ${p.status === 'On Track' ? 'bg-green-100 text-green-700' :
+                            p.status === 'Delayed' ? 'bg-red-100 text-[#ED1C24]' :
+                            'bg-gray-200 text-gray-700'}">
+                            ${p.status}
+                        </span>
+                    </td>
+                    <td class="p-4">
+                        <div class="flex items-center gap-2">
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="bg-[#ED1C24] h-2 rounded-full" style="width: ${p.progress}%"></div>
+                            </div>
+                            <span class="text-xs font-bold">${p.progress}%</span>
+                        </div>
+                    </td>
+                    <td class="p-4 text-xs text-gray-500 max-w-[150px] truncate" title="${p.remarks || ''}">${p.remarks || '-'}</td>
+                    <td class="p-4">
+                        <button onclick="editProject(${p.id})" class="text-blue-500 hover:underline mr-2">Edit</button>
+                        <button onclick="deleteProject(${p.id})" class="text-red-500 hover:underline">Delete</button>
+                    </td>
+                </tr>
+            `).join('');
+
+            document.getElementById('pageInfo').innerText = `Page ${currentPage}`;
+            document.getElementById('prevBtn').disabled = currentPage === 1;
+            document.getElementById('nextBtn').disabled = endIndex >= allProjects.length;
+        }
+
+        document.getElementById('nextBtn').addEventListener('click', () => {
+            if ((currentPage * 10) < allProjects.length) {
+                currentPage++;
+                renderTable();
+            }
+        });
+
+        document.getElementById('prevBtn').addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderTable();
+            }
+        });
     </script>
 </body>
 </html>
