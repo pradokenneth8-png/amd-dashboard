@@ -57,32 +57,4 @@ app.post('/projects', async (req, res) => {
   try {
     const { name, team_id, secondary_team, status, start_date, end_date, progress, remarks } = req.body;
     const result = await pool.query(
-      'INSERT INTO projects (name, team_id, secondary_team, status, start_date, end_date, progress, remarks) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *', 
-      [name, team_id, secondary_team, status, start_date, end_date, progress, remarks]
-    );
-    res.json(result.rows[0]);
-  } catch (err) { res.status(500).send(err.message); }
-});
-// DELETE a Project
-app.delete('/projects/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    await pool.query('DELETE FROM projects WHERE id = $1', [id]);
-    res.json({ message: "Project deleted!" });
-  } catch (err) {
-    res.status(500).send(err.message);
-  }
-});
-// UPDATE a Project (Name and Progress)
-app.put('/projects/:id', async (req, res) => {
-  try {
-    const { name, progress, status, secondary_team, remarks } = req.body;
-    await pool.query(
-      'UPDATE projects SET name = $1, progress = $2, status = $3, secondary_team = $4, remarks = $5 WHERE id = $6', 
-      [name, progress, status, secondary_team, remarks, req.params.id]
-    );
-    res.json({ message: "Updated!" });
-  } catch (err) { res.status(500).send(err.message); }
-});
-});
-app.listen(port, () => console.log(`AMD Dashboard running on ${port}`));
+      '
