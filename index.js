@@ -16,11 +16,13 @@ const pool = new Pool({
 
 // Get Teams
 app.get('/teams', async (req, res) => {
-  const result = await pool.query('SELECT * FROM teams');
-  res.json(result.rows);
+  try {
+    const result = await pool.query('SELECT * FROM teams ORDER BY id ASC');
+    res.json(result.rows);
+  } catch (err) { res.status(500).send(err.message); }
 });
 
-// SMART VERSION 2.0 (Filters by Team AND Status)
+// Get Projects with Filters
 app.get('/projects', async (req, res) => {
   try {
     const { team_id, status } = req.query;
@@ -28,33 +30,54 @@ app.get('/projects', async (req, res) => {
     let params = [];
     let conditions = [];
 
-    // Filter by Team if selected
     if (team_id && team_id !== "all") {
       params.push(team_id);
       conditions.push(`p.team_id = $${params.length}`);
     }
-
-    // Filter by Status if selected
     if (status && status !== "all") {
       params.push(status);
       conditions.push(`p.status = $${params.length}`);
     }
-
     if (conditions.length > 0) {
       query += ' WHERE ' + conditions.join(' AND ');
     }
+    query += ' ORDER BY p.id DESC';
 
     const result = await pool.query(query, params);
     res.json(result.rows);
-  } catch (err) {
-    res.status(500).send(err.message);
-  }
+  } catch (err) { res.status(500).send(err.message); }
 });
 
-
-// Save a New Project (Unified Form)
+// Create Project
 app.post('/projects', async (req, res) => {
   try {
     const { name, team_id, secondary_team, status, start_date, end_date, progress, remarks } = req.body;
     const result = await pool.query(
-      '
+      'INSERT INTO projects (name, team_id, secondary_team, status, start_date, end_date, progress, remarks) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *', 
+      [name, team_id, secondary_team, status, start_date, end_date, progress, remarks]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).send(err.message); }
+});
+
+// Update Project
+app.put('/projects/:id', async (req, res) => {
+  try {
+    const { name, progress, status, secondary_team, remarks } = req.body;
+    await pool.query(
+      'UPDATE projects SET name = $1, progress = $2, status = $3, secondary_team = $4, remarks = $5 WHERE id = $6', 
+      [name, progress, status, secondary_team, remarks, req.params.id]
+    );
+    res.json({ message: "Updated!" });
+  } catch (err) { res.status(500).send(err.message); }
+});
+
+// Delete Project
+app.delete('/projects/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM projects WHERE id = $1', [req.params.id]);
+    res.json({ message: "Deleted!" });
+  } catch (err) { res.status(500).send(err.message); }
+});
+
+app.listen(port, () => console.log(`AMD Dashboard running on ${port}`));
