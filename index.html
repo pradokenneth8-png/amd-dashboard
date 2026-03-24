@@ -27,6 +27,12 @@
         <div class="space-y-4">
             <input type="text" id="username" placeholder="Username" class="w-full p-3 border rounded-lg bg-gray-50 text-sm">
             <input type="password" id="password" placeholder="Password" class="w-full p-3 border rounded-lg bg-gray-50 text-sm">
+            
+            <div class="bg-gray-100 p-3 rounded-lg flex items-center justify-between border border-gray-200">
+                <span class="text-xs font-bold text-gray-600">Security: What is <span id="captcha-question" class="text-black text-sm"></span>?</span>
+                <input type="number" id="captcha-answer" class="w-16 p-1 text-center border rounded text-sm font-bold">
+            </div>
+
             <button id="auth-btn" onclick="handleAuth()" class="w-full bg-amd text-white py-3 rounded-lg font-bold uppercase shadow-lg hover:bg-red-700 transition">Unlock Dashboard</button>
         </div>
         <div class="mt-6 pt-4 border-t border-gray-100">
@@ -41,7 +47,14 @@
     <header class="bg-black text-white p-4 shadow-xl border-b-4 border-amd sticky top-0 z-50">
         <div class="container mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
             <h1 class="text-xl font-black italic tracking-tighter uppercase">Asset Management Department</h1>
-            <div class="flex flex-wrap gap-2">
+            <div class="flex flex-wrap gap-2 items-center">
+                <select id="timeFilter" onchange="renderTable()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold text-yellow-400">
+                    <option value="all">ALL DATES</option>
+                    <option value="overdue">⚠️ OVERDUE</option>
+                    <option value="week">DUE NEXT 7 DAYS</option>
+                    <option value="month">DUE THIS MONTH</option>
+                </select>
+
                 <select id="statusFilter" onchange="loadData()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold">
                     <option value="all">ALL STATUS</option>
                     <option value="On Track">ON TRACK</option>
@@ -55,83 +68,124 @@
                     <option value="asc">SORT A-Z</option>
                     <option value="desc">SORT Z-A</option>
                 </select>
-                <button onclick="showHistory()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded-full font-bold text-[10px] transition">📜 HISTORY</button>
-                <button onclick="exportToPDF()" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-full font-bold text-[10px]">📊 REPORT</button>
+                
+                <button onclick="showHistory()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded-full font-bold text-[10px] transition">📜 LOGS</button>
+                <button onclick="exportToPDF()" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-full font-bold text-[10px]">📊 PDF</button>
                 <button onclick="openModal()" class="bg-amd hover:bg-red-700 text-white px-3 py-1 rounded-full font-bold text-[10px]">+ NEW</button>
-                <button onclick="location.reload()" class="text-gray-500 hover:text-white text-[10px] font-bold uppercase">Logout</button>
+                <button onclick="location.reload()" class="text-gray-500 hover:text-white text-[10px] font-bold uppercase ml-2">Logout</button>
             </div>
         </div>
     </header>
 
     <main class="container mx-auto p-4 space-y-6">
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            <div class="space-y-4">
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                    <h2 class="text-[10px] font-bold text-gray-400 uppercase mb-4">Portfolio Health</h2>
-                    <div class="h-40 flex items-center justify-center"><canvas id="statusChart"></canvas></div>
-                </div>
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                    <h2 class="text-[10px] font-bold text-gray-400 uppercase mb-4">Team Workload</h2>
-                    <div class="h-40"><canvas id="heatmapChart"></canvas></div>
-                </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="max-h-[400px] overflow-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-gray-50 text-gray-400 text-[10px] font-bold uppercase sticky top-0 z-10">
+                        <tr>
+                            <th class="p-4">Project</th>
+                            <th class="p-4">Team</th>
+                            <th class="p-4">Addl. Teams</th>
+                            <th class="p-4">Status</th>
+                            <th class="p-4 w-32">Progress</th>
+                            <th class="p-4">Remarks</th>
+                            <th class="p-4 text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="project-list-rows" class="divide-y divide-gray-100"></tbody>
+                </table>
             </div>
-            <div class="lg:col-span-3 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div class="max-h-[500px] overflow-auto">
-                    <table class="w-full text-left text-sm">
-                        <thead class="bg-gray-50 text-gray-400 text-[10px] font-bold uppercase sticky top-0">
-                            <tr><th class="p-4">Project</th><th class="p-4">Team</th><th class="p-4">Sec. Team</th><th class="p-4">Status</th><th class="p-4">Progress</th><th class="p-4">Remarks</th><th class="p-4">Actions</th></tr>
-                        </thead>
-                        <tbody id="project-list-rows" class="divide-y divide-gray-100"></tbody>
-                    </table>
-                </div>
-                <div class="flex justify-between items-center p-3 bg-gray-50 border-t border-gray-200">
-                    <button id="prevBtn" onclick="changePage(-1)" class="px-3 py-1 bg-gray-200 text-gray-700 rounded text-[10px] font-bold uppercase disabled:opacity-30">Prev</button>
-                    <span id="pageInfo" class="text-[10px] text-gray-400 font-bold uppercase">Page 1</span>
-                    <button id="nextBtn" onclick="changePage(1)" class="px-3 py-1 bg-black text-white rounded text-[10px] font-bold uppercase disabled:opacity-30">Next</button>
-                </div>
+            <div class="flex justify-between items-center p-3 bg-gray-50 border-t border-gray-200">
+                <button id="prevBtn" onclick="changePage(-1)" class="px-3 py-1 bg-gray-200 text-gray-700 rounded text-[10px] font-bold uppercase disabled:opacity-30">Prev</button>
+                <span id="pageInfo" class="text-[10px] text-gray-400 font-bold uppercase">Page 1</span>
+                <button id="nextBtn" onclick="changePage(1)" class="px-3 py-1 bg-black text-white rounded text-[10px] font-bold uppercase disabled:opacity-30">Next</button>
             </div>
         </div>
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <h2 class="text-xs font-bold text-gray-400 uppercase mb-4">Gantt Performance</h2>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 lg:col-span-1">
+                <h2 class="text-[10px] font-bold text-gray-400 uppercase mb-4 text-center">Portfolio Health</h2>
+                <div class="h-48 flex items-center justify-center"><canvas id="statusChart"></canvas></div>
+            </div>
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
+                <h2 class="text-[10px] font-bold text-gray-400 uppercase mb-4 text-center">Team Workload Distribution</h2>
+                <div class="h-48"><canvas id="heatmapChart"></canvas></div>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
+            <h2 class="text-xs font-bold text-gray-400 uppercase mb-4">Timeline Performance</h2>
             <div id="gantt"></div>
         </div>
     </main>
 
     <div id="modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-2xl p-8 max-w-md w-full">
+        <div class="bg-white rounded-2xl p-8 max-w-md w-full max-h-[90vh] overflow-y-auto">
             <h2 id="modalTitle" class="text-xl font-bold mb-6 italic uppercase tracking-tighter">Project Entry</h2>
             <form id="projectForm" class="space-y-4">
                 <input type="hidden" id="edit-id">
-                <input type="text" id="name" placeholder="Project Name" class="w-full p-2 border rounded bg-gray-50 text-sm" required>
-                <div id="full-inputs" class="space-y-4">
+                <input type="text" id="name" placeholder="Project Name" class="w-full p-2 border rounded bg-gray-50 text-sm font-bold" required>
+                
+                <div class="space-y-1 border-t pt-2">
+                    <label class="text-[10px] font-bold text-gray-400 uppercase">Primary Team</label>
+                    <select id="team_id" class="w-full p-2 border rounded bg-gray-50 text-sm"></select>
+                </div>
+
+                <div class="space-y-1">
+                    <label class="text-[10px] font-bold text-gray-400 uppercase">Additional / Supporting Teams</label>
+                    <div id="additionalTeamsContainer" class="bg-gray-50 p-2 border rounded grid grid-cols-2 gap-2 max-h-24 overflow-y-auto">
+                        </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 border-t pt-2">
                     <div class="space-y-1">
-                        <label class="text-[10px] font-bold text-gray-400 uppercase">Primary Team</label>
-                        <select id="team_id" class="w-full p-2 border rounded bg-gray-50 text-sm"></select>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase">Start Date</label>
+                        <input type="date" id="start_date" class="w-full p-2 border rounded bg-gray-50 text-sm" required>
                     </div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <input type="date" id="start_date" class="w-full p-2 border rounded bg-gray-50 text-sm">
-                        <input type="date" id="end_date" class="w-full p-2 border rounded bg-gray-50 text-sm">
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-bold text-gray-400 uppercase">End Date</label>
+                        <input type="date" id="end_date" class="w-full p-2 border rounded bg-gray-50 text-sm" required>
                     </div>
                 </div>
-                <div class="grid grid-cols-2 gap-2">
+
+                <div class="grid grid-cols-2 gap-4">
                     <div class="space-y-1">
                         <label class="text-[10px] font-bold text-gray-400 uppercase">Progress %</label>
                         <input type="number" id="progress" placeholder="0-100" min="0" max="100" class="w-full p-2 border rounded bg-gray-50 text-sm" required>
                     </div>
                     <div class="space-y-1">
-                        <label class="text-[10px] font-bold text-gray-400 uppercase">Sec. Team (Opt.)</label>
-                        <select id="secondaryTeam" class="w-full p-2 border rounded bg-gray-50 text-sm"></select>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase">Status</label>
+                        <select id="status" class="w-full p-2 border rounded bg-gray-50 text-sm">
+                            <option>On Track</option><option>Delayed</option><option>Completed</option>
+                        </select>
                     </div>
                 </div>
-                <select id="status" class="w-full p-2 border rounded bg-gray-50 text-sm">
-                    <option>On Track</option><option>Delayed</option><option>Completed</option>
-                </select>
-                <textarea id="projectRemarks" placeholder="Remarks" rows="2" class="w-full p-2 border rounded bg-gray-50 text-sm"></textarea>
+
+                <textarea id="projectRemarks" placeholder="Remarks / Reason for Delay" rows="2" class="w-full p-2 border rounded bg-gray-50 text-sm"></textarea>
+                
                 <div class="flex gap-3 pt-4">
-                    <button type="button" onclick="closeModal()" class="flex-1 text-gray-400 font-bold text-xs uppercase">Cancel</button>
-                    <button type="submit" class="flex-1 bg-amd text-white py-3 rounded-lg font-bold text-xs uppercase shadow-lg">Save</button>
+                    <button type="button" onclick="closeModal()" class="flex-1 text-gray-400 font-bold text-xs uppercase hover:text-black">Cancel</button>
+                    <button type="submit" class="flex-1 bg-amd text-white py-3 rounded-lg font-bold text-xs uppercase shadow-lg">Save Changes</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <div id="dates-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-[60]">
+        <div class="bg-white rounded-2xl p-6 max-w-sm w-full text-center shadow-2xl">
+            <h2 id="dates-modal-title" class="text-lg font-bold mb-4 text-gray-800"></h2>
+            <div class="flex justify-between items-center bg-gray-50 p-4 rounded-lg border mb-4">
+                <div>
+                    <p class="text-[10px] font-bold text-gray-400 uppercase">Start Date</p>
+                    <p id="dates-modal-start" class="font-bold text-sm"></p>
+                </div>
+                <div>➡️</div>
+                <div>
+                    <p class="text-[10px] font-bold text-gray-400 uppercase">End Date</p>
+                    <p id="dates-modal-end" class="font-bold text-sm"></p>
+                </div>
+            </div>
+            <button onclick="document.getElementById('dates-modal').classList.add('hidden')" class="w-full bg-black text-white py-2 rounded-lg font-bold text-xs uppercase">Close</button>
         </div>
     </div>
 
@@ -141,40 +195,53 @@
                 <h2 class="text-xl font-black italic uppercase tracking-tighter">Project Audit Logs</h2>
                 <button onclick="closeHistory()" class="text-gray-400 hover:text-black font-bold">✕</button>
             </div>
-            
-            <div class="overflow-y-auto flex-grow">
+            <div class="overflow-y-auto flex-grow border rounded">
                 <table class="w-full text-left text-xs text-gray-700">
-                    <thead class="bg-gray-50 text-gray-400 font-bold uppercase sticky top-0">
-                        <tr>
-                            <th class="p-3">Project</th>
-                            <th class="p-3">Action</th>
-                            <th class="p-3">User</th>
-                            <th class="p-3">Time</th>
-                        </tr>
+                    <thead class="bg-gray-100 text-gray-500 font-bold uppercase sticky top-0">
+                        <tr><th class="p-3">Project</th><th class="p-3">Action</th><th class="p-3">User</th><th class="p-3">Time</th></tr>
                     </thead>
-                    <tbody id="history-rows" class="divide-y divide-gray-100">
-                        </tbody>
+                    <tbody id="history-rows" class="divide-y divide-gray-200"></tbody>
                 </table>
             </div>
-            
-            <div class="mt-4 pt-4 border-t text-center">
-                <button onclick="closeHistory()" class="text-amd font-bold text-xs uppercase hover:underline">Close History</button>
+            <div class="mt-4 flex justify-between items-center">
+                <button id="admin-clear-btn" onclick="clearHistory()" class="hidden text-red-500 font-bold text-xs uppercase hover:underline">⚠️ Clear History</button>
+                <button onclick="closeHistory()" class="bg-gray-200 text-gray-800 px-4 py-2 rounded font-bold text-xs uppercase ml-auto">Close</button>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-    let statusChartInstance, heatmapChartInstance, allProjects = [], currentPage = 1, currentUser = null, isLoginMode = true;
+    let statusChartInstance, heatmapChartInstance, allProjects = [], allTeamsList = [], currentPage = 1, currentUser = null, isLoginMode = true;
+    let captchaNum1, captchaNum2;
+
+    // --- CAPTCHA & AUTH LOGIC ---
+    function generateCaptcha() {
+        captchaNum1 = Math.floor(Math.random() * 10) + 1;
+        captchaNum2 = Math.floor(Math.random() * 10) + 1;
+        document.getElementById('captcha-question').innerText = `${captchaNum1} + ${captchaNum2}`;
+        document.getElementById('captcha-answer').value = '';
+    }
 
     function toggleAuthMode() {
         isLoginMode = !isLoginMode;
         document.getElementById('auth-title').innerText = isLoginMode ? "AMD Access" : "Join AMD Portal";
         document.getElementById('auth-btn').innerText = isLoginMode ? "Unlock Dashboard" : "Create Account";
         document.getElementById('auth-toggle-btn').innerText = isLoginMode ? "Create Account" : "Back to Login";
+        generateCaptcha();
     }
 
     async function handleAuth() {
+        const errorEl = document.getElementById('login-error');
+        const userAnswer = parseInt(document.getElementById('captcha-answer').value);
+        
+        if (userAnswer !== (captchaNum1 + captchaNum2)) {
+            errorEl.innerText = "Captcha Failed. Try again.";
+            errorEl.classList.remove('hidden');
+            generateCaptcha();
+            return;
+        }
+
         const username = document.getElementById('username').value;
         const password = document.getElementById('password').value;
         const res = await fetch(isLoginMode ? '/login' : '/register', {
@@ -182,12 +249,29 @@
             body: JSON.stringify({ username, password })
         });
         const data = await res.json();
+        
         if (res.ok) {
             if (!isLoginMode) { alert("Account Ready!"); toggleAuthMode(); }
-            else { currentUser = data.username; document.getElementById('login-page').style.display='none'; document.getElementById('main-app').style.display='block'; init(); }
-        } else { alert(data.message); }
+            else { 
+                currentUser = data.username; 
+                document.getElementById('login-page').style.display='none'; 
+                document.getElementById('main-app').style.display='block'; 
+                
+                // Show clear history button if admin
+                if(currentUser === 'admin') document.getElementById('admin-clear-btn').classList.remove('hidden');
+                init(); 
+            }
+        } else { 
+            errorEl.innerText = data.message; 
+            errorEl.classList.remove('hidden'); 
+            generateCaptcha(); 
+        }
     }
 
+    // Initialize the first captcha
+    generateCaptcha();
+
+    // --- DATA LOADING ---
     async function loadData() {
         const team = document.getElementById('teamFilter').value;
         const status = document.getElementById('statusFilter').value;
@@ -196,30 +280,67 @@
         renderTable(); updateChart(); renderHeatmap(); renderGantt();
     }
 
+    // --- RENDER TABLE & FILTERS ---
     function renderTable() {
         const sortOrder = document.getElementById('sortOrder').value;
-        allProjects.sort((a, b) => sortOrder === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
+        const timeFilter = document.getElementById('timeFilter').value;
+        const today = new Date();
+        today.setHours(0,0,0,0);
+
+        // Filter by Time First
+        let filteredProjects = allProjects.filter(p => {
+            const endDate = new Date(p.end_date);
+            if (timeFilter === 'overdue') return endDate < today && p.status !== 'Completed';
+            if (timeFilter === 'month') return endDate.getMonth() === today.getMonth() && endDate.getFullYear() === today.getFullYear();
+            if (timeFilter === 'week') {
+                const nextWeek = new Date(today);
+                nextWeek.setDate(today.getDate() + 7);
+                return endDate >= today && endDate <= nextWeek;
+            }
+            return true;
+        });
+
+        // Sort A-Z
+        filteredProjects.sort((a, b) => sortOrder === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
 
         const start = (currentPage - 1) * 10;
-        const paginated = allProjects.slice(start, start + 10);
-        const today = new Date();
+        const paginated = filteredProjects.slice(start, start + 10);
+        
         document.getElementById('project-list-rows').innerHTML = paginated.map(p => {
-            const overdue = new Date(p.end_date) < today && p.status !== 'Completed';
+            const endDate = new Date(p.end_date);
+            const overdue = endDate < today && p.status !== 'Completed';
+            
+            // Dynamic Progress Bar Color based on Status
+            const barColor = p.status === 'Completed' ? 'bg-green-500' : (p.status === 'Delayed' ? 'bg-red-500' : 'bg-blue-500');
+
             return `<tr class="${overdue ? 'delayed-alert' : ''} hover:bg-gray-50 transition border-b border-gray-50">
                 <td class="p-4 font-bold text-gray-800">${p.name}</td>
-                <td class="p-4 text-[10px] font-bold text-gray-400 uppercase">${p.team_name}</td>
-                <td class="p-4 text-[10px] font-bold text-gray-400 uppercase">${p.secondary_team || '-'}</td>
+                <td class="p-4 text-[10px] font-bold text-gray-500 uppercase">${p.team_name}</td>
+                <td class="p-4 text-[10px] font-bold text-gray-500 uppercase">${p.secondary_team || '-'}</td>
                 <td class="p-4"><span class="px-2 py-1 rounded text-[9px] font-black uppercase ${p.status === 'On Track' ? 'bg-blue-50 text-blue-600' : p.status === 'Delayed' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}">${p.status}</span></td>
-                <td class="p-4"><div class="flex items-center gap-2"><div class="flex-grow bg-gray-100 rounded-full h-1.5 overflow-hidden"><div class="bg-amd h-full" style="width: ${p.progress}%"></div></div><span class="text-[10px] font-bold text-gray-400">${p.progress}%</span></div></td>
-                <td class="p-4 text-[10px] text-gray-500 max-w-[120px] truncate" title="${p.remarks || ''}">${p.remarks || '-'}</td>
-                <td class="p-4 flex gap-2"><button onclick="editProject(${p.id})" class="text-blue-500 font-bold text-[10px] uppercase">Edit</button><button onclick="deleteProject(${p.id})" class="text-red-500 font-bold text-[10px] uppercase">Del</button></td>
+                <td class="p-4">
+                    <div class="flex items-center gap-2">
+                        <div class="flex-grow bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                            <div class="${barColor} h-full" style="width: ${p.progress}%"></div>
+                        </div>
+                        <span class="text-[10px] font-bold text-gray-400">${p.progress}%</span>
+                    </div>
+                </td>
+                <td class="p-4 text-[10px] text-gray-500 max-w-[100px] truncate" title="${p.remarks || ''}">${p.remarks || '-'}</td>
+                <td class="p-4 text-center space-x-2">
+                    <button onclick="showDates('${p.name}', '${p.start_date}', '${p.end_date}')" class="text-gray-600 bg-gray-100 px-2 py-1 rounded font-bold text-[9px] uppercase hover:bg-gray-200">📅 Dates</button>
+                    <button onclick="editProject(${p.id})" class="text-blue-500 font-bold text-[10px] uppercase hover:underline">Edit</button>
+                    <button onclick="deleteProject(${p.id})" class="text-red-500 font-bold text-[10px] uppercase hover:underline">Del</button>
+                </td>
             </tr>`;
         }).join('');
+        
         document.getElementById('pageInfo').innerText = `Page ${currentPage}`;
-        document.getElementById('nextBtn').disabled = start + 10 >= allProjects.length;
+        document.getElementById('nextBtn').disabled = start + 10 >= filteredProjects.length;
         document.getElementById('prevBtn').disabled = currentPage === 1;
     }
 
+    // --- CHART UPDATES ---
     function updateChart() {
         const counts = { 'On Track': 0, 'Delayed': 0, 'Completed': 0 };
         allProjects.forEach(p => counts[p.status]++);
@@ -227,53 +348,62 @@
         if (statusChartInstance) statusChartInstance.destroy();
         Chart.register(ChartDataLabels);
         statusChartInstance = new Chart(ctx, {
-            type: 'doughnut', data: { labels: Object.keys(counts), datasets: [{ data: Object.values(counts), backgroundColor: ['#3B82F6', '#ED1C24', '#10B981'], borderWidth: 2, borderColor: '#fff' }] },
-            options: { cutout: '70%', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, datalabels: { color: '#fff', font: { weight: 'bold', size: 10 }, formatter: (v) => v ? Math.round((v/allProjects.length)*100)+'%' : null } } }
+            type: 'pie', data: { labels: Object.keys(counts), datasets: [{ data: Object.values(counts), backgroundColor: ['#3B82F6', '#ED1C24', '#10B981'], borderWidth: 1 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } }, datalabels: { color: '#fff', font: { weight: 'bold', size: 10 }, formatter: (v) => v > 0 ? v : null } } }
         });
     }
 
     function renderHeatmap() {
-        const teamCounts = {};
-        allProjects.forEach(p => teamCounts[p.team_name] = (teamCounts[p.team_name] || 0) + 1);
+        // Stacked Bar showing ALL teams and status colors
+        const teamData = {};
+        allTeamsList.forEach(t => teamData[t.name] = { 'On Track': 0, 'Delayed': 0, 'Completed': 0 });
+        
+        allProjects.forEach(p => {
+            if(teamData[p.team_name]) teamData[p.team_name][p.status]++;
+        });
+
+        const labels = Object.keys(teamData);
+        const onTrackData = labels.map(l => teamData[l]['On Track']);
+        const delayedData = labels.map(l => teamData[l]['Delayed']);
+        const completedData = labels.map(l => teamData[l]['Completed']);
+
         const ctx = document.getElementById('heatmapChart').getContext('2d');
         if (heatmapChartInstance) heatmapChartInstance.destroy();
+        
         heatmapChartInstance = new Chart(ctx, {
-            type: 'bar', data: { labels: Object.keys(teamCounts), datasets: [{ label: 'Workload', data: Object.values(teamCounts), backgroundColor: '#ED1C24' }] },
-            options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, grid: { display: false } } } }
+            type: 'bar',
+            data: { 
+                labels: labels, 
+                datasets: [
+                    { label: 'Completed', data: completedData, backgroundColor: '#10B981' },
+                    { label: 'On Track', data: onTrackData, backgroundColor: '#3B82F6' },
+                    { label: 'Delayed', data: delayedData, backgroundColor: '#ED1C24' }
+                ] 
+            },
+            options: { 
+                indexAxis: 'y', 
+                responsive: true, maintainAspectRatio: false,
+                scales: { x: { stacked: true }, y: { stacked: true, ticks: { font: { size: 9 } } } },
+                plugins: { 
+                    legend: { display: true, position: 'top', labels: { boxWidth: 10, font:{size:9} } },
+                    datalabels: {
+                        color: '#fff', font: { weight: 'bold', size: 9 },
+                        formatter: (val, ctx) => {
+                            // Show total only on the last visible segment, or if value is > 0
+                            return val > 0 ? val : null;
+                        }
+                    } 
+                } 
+            }
         });
     }
 
-    function exportToPDF() {
-        const { jsPDF } = window.jspdf; const doc = new jsPDF();
-        doc.setFontSize(18); doc.text("AMD STATUS REPORT", 14, 20);
-        doc.autoTable({ startY: 30, head: [['Project', 'Team', 'Status', 'Progress']], body: allProjects.map(p => [p.name, p.team_name, p.status, p.progress + "%"]), headStyles: { fillColor: [237, 28, 36] } });
-        doc.save("AMD_Report.pdf");
-    }
-
-    // --- HISTORY LOGIC ---
-    async function showHistory() {
-        try {
-            const res = await fetch('/logs');
-            const logs = await res.json();
-            
-            const rows = logs.map(log => `
-                <tr class="hover:bg-gray-50 border-b border-gray-100">
-                    <td class="p-3 font-bold text-gray-800">${log.project_name || 'Deleted Project'}</td>
-                    <td class="p-3 text-gray-600">${log.action}</td>
-                    <td class="p-3 font-bold text-blue-600">${log.changed_by}</td>
-                    <td class="p-3 text-gray-400 text-[10px]">${new Date(log.timestamp).toLocaleString()}</td>
-                </tr>
-            `).join('');
-
-            document.getElementById('history-rows').innerHTML = rows || '<tr><td colspan="4" class="p-4 text-center">No history recorded yet.</td></tr>';
-            document.getElementById('history-modal').classList.remove('hidden');
-        } catch (err) {
-            alert("Failed to load history.");
-        }
-    }
-
-    function closeHistory() {
-        document.getElementById('history-modal').classList.add('hidden');
+    // --- MODALS & INTERACTIONS ---
+    function showDates(name, start, end) {
+        document.getElementById('dates-modal-title').innerText = name;
+        document.getElementById('dates-modal-start').innerText = start.split('T')[0];
+        document.getElementById('dates-modal-end').innerText = end.split('T')[0];
+        document.getElementById('dates-modal').classList.remove('hidden');
     }
 
     function editProject(id) {
@@ -283,66 +413,110 @@
         document.getElementById('edit-id').value = p.id;
         document.getElementById('name').value = p.name;
         document.getElementById('progress').value = p.progress;
-        document.getElementById('secondaryTeam').value = p.secondary_team || '';
-        document.getElementById('projectRemarks').value = p.remarks || '';
         document.getElementById('status').value = p.status;
-        document.getElementById('full-inputs').classList.add('hidden');
+        
+        // Setup dates for editing
+        document.getElementById('start_date').value = p.start_date.split('T')[0];
+        document.getElementById('end_date').value = p.end_date.split('T')[0];
+
+        // Setup multiple additional teams
+        const secTeams = p.secondary_team ? p.secondary_team.split(', ') : [];
+        document.querySelectorAll('.add-team-cb').forEach(cb => {
+            cb.checked = secTeams.includes(cb.value);
+        });
+
+        document.getElementById('projectRemarks').value = p.remarks || '';
         document.getElementById('modal').classList.remove('hidden');
     }
 
     document.getElementById('projectForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const id = document.getElementById('edit-id').value;
+        
+        // Gather selected additional teams
+        const selectedTeams = Array.from(document.querySelectorAll('.add-team-cb:checked')).map(cb => cb.value).join(', ');
+
         const data = { 
             name: document.getElementById('name').value, 
+            team_id: document.getElementById('team_id').value,
+            start_date: document.getElementById('start_date').value,
+            end_date: document.getElementById('end_date').value,
             progress: document.getElementById('progress').value, 
             status: document.getElementById('status').value, 
-            secondary_team: document.getElementById('secondaryTeam').value, 
+            secondary_team: selectedTeams, 
             remarks: document.getElementById('projectRemarks').value, 
             user: currentUser 
         };
+
         if (id) await fetch(`/projects/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-        else {
-            data.team_id = document.getElementById('team_id').value;
-            data.start_date = document.getElementById('start_date').value;
-            data.end_date = document.getElementById('end_date').value;
-            await fetch('/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-        }
+        else await fetch('/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+        
         closeModal(); loadData();
     });
 
+    // --- HISTORY ---
+    async function showHistory() {
+        try {
+            const res = await fetch('/logs');
+            const logs = await res.json();
+            const rows = logs.map(log => `
+                <tr class="hover:bg-gray-50 border-b border-gray-100">
+                    <td class="p-3 font-bold text-gray-800">${log.project_name || 'Deleted Record'}</td>
+                    <td class="p-3 text-gray-600 text-[10px]">${log.action}</td>
+                    <td class="p-3 font-bold text-blue-600">${log.changed_by}</td>
+                    <td class="p-3 text-gray-400 text-[9px]">${new Date(log.timestamp).toLocaleString()}</td>
+                </tr>
+            `).join('');
+            document.getElementById('history-rows').innerHTML = rows || '<tr><td colspan="4" class="p-4 text-center">No history recorded yet.</td></tr>';
+            document.getElementById('history-modal').classList.remove('hidden');
+        } catch (err) { alert("Failed to load history."); }
+    }
+
+    async function clearHistory() {
+        if(confirm("Admin: Are you sure you want to permanently delete all history logs?")) {
+            await fetch('/logs', { method: 'DELETE' });
+            showHistory();
+        }
+    }
+    function closeHistory() { document.getElementById('history-modal').classList.add('hidden'); }
+
+    // --- UTILS ---
     async function deleteProject(id) { 
-        if (confirm("Delete this project?")) { 
-            await fetch(`/projects/${id}`, { method: 'DELETE' }); 
-            loadData(); 
-        } 
+        if (confirm("Delete this project?")) { await fetch(`/projects/${id}`, { method: 'DELETE' }); loadData(); } 
     }
 
     function renderGantt() {
         const container = document.getElementById('gantt');
         container.innerHTML = "";
         if (allProjects.length > 0) {
-            const tasks = allProjects.map(p => ({
-                id: p.id.toString(),
-                name: p.name,
-                start: p.start_date.split('T')[0],
-                end: p.end_date.split('T')[0],
-                progress: p.progress
-            }));
+            const tasks = allProjects.map(p => ({ id: p.id.toString(), name: p.name, start: p.start_date.split('T')[0], end: p.end_date.split('T')[0], progress: p.progress }));
             new Gantt("#gantt", tasks, { view_mode: 'Week', bar_height: 20 });
         }
     }
 
+    function exportToPDF() {
+        const { jsPDF } = window.jspdf; const doc = new jsPDF();
+        doc.setFontSize(18); doc.text("AMD STATUS REPORT", 14, 20);
+        doc.autoTable({ startY: 30, head: [['Project', 'Team', 'Status', 'Progress']], body: allProjects.map(p => [p.name, p.team_name, p.status, p.progress + "%"]), headStyles: { fillColor: [237, 28, 36] } });
+        doc.save("AMD_Report.pdf");
+    }
+
     async function init() {
         const res = await fetch('/teams');
-        const teams = await res.json();
+        allTeamsList = await res.json(); // Save for heatmap
         
-        const primaryOpts = teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+        const primaryOpts = allTeamsList.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
         document.getElementById('team_id').innerHTML = primaryOpts;
         document.getElementById('teamFilter').innerHTML += primaryOpts;
 
-        const secondaryOpts = `<option value="">None</option>` + teams.map(t => `<option value="${t.name}">${t.name}</option>`).join('');
-        document.getElementById('secondaryTeam').innerHTML = secondaryOpts;
+        // Generate Multiple Checkboxes for Additional Teams
+        const cbHtml = allTeamsList.map(t => `
+            <label class="flex items-center space-x-2 p-1 hover:bg-gray-200 rounded cursor-pointer transition">
+                <input type="checkbox" value="${t.name}" class="add-team-cb text-amd">
+                <span class="text-[10px] font-bold text-gray-700">${t.name}</span>
+            </label>
+        `).join('');
+        document.getElementById('additionalTeamsContainer').innerHTML = cbHtml;
 
         loadData();
     }
@@ -350,7 +524,7 @@
     function openModal() { 
         document.getElementById('projectForm').reset(); 
         document.getElementById('edit-id').value = ""; 
-        document.getElementById('full-inputs').classList.remove('hidden'); 
+        document.querySelectorAll('.add-team-cb').forEach(cb => cb.checked = false);
         document.getElementById('modal').classList.remove('hidden'); 
     }
     function closeModal() { document.getElementById('modal').classList.add('hidden'); }

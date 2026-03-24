@@ -15,7 +15,6 @@ const pool = new Pool({
 });
 
 // --- AUTHENTICATION ---
-
 app.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -40,7 +39,6 @@ app.post('/register', async (req, res) => {
 });
 
 // --- CORE DATA ---
-
 app.get('/teams', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM teams ORDER BY id ASC');
@@ -63,13 +61,11 @@ app.get('/projects', async (req, res) => {
   } catch (err) { res.status(500).send(err.message); }
 });
 
-// --- AUDIT HISTORY ROUTE ---
+// --- AUDIT HISTORY ---
 app.get('/logs', async (req, res) => {
   try {
-    // This joins with projects so we can see the NAME of the project in the history
     const result = await pool.query(`
-      SELECT al.*, p.name as project_name 
-      FROM audit_logs al 
+      SELECT al.*, p.name as project_name FROM audit_logs al 
       LEFT JOIN projects p ON al.project_id = p.id 
       ORDER BY al.timestamp DESC LIMIT 50
     `);
@@ -77,6 +73,15 @@ app.get('/logs', async (req, res) => {
   } catch (err) { res.status(500).send(err.message); }
 });
 
+// NEW: Clear History Route (Admin Only)
+app.delete('/logs', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM audit_logs');
+    res.json({ message: "History Cleared" });
+  } catch (err) { res.status(500).send(err.message); }
+});
+
+// --- PROJECT MUTATIONS ---
 app.post('/projects', async (req, res) => {
   try {
     const { name, team_id, secondary_team, status, start_date, end_date, progress, remarks, user } = req.body;
@@ -84,21 +89,22 @@ app.post('/projects', async (req, res) => {
       'INSERT INTO projects (name, team_id, secondary_team, status, start_date, end_date, progress, remarks) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *', 
       [name, team_id, secondary_team, status, start_date, end_date, progress, remarks]
     );
-    // Log the creation
     await pool.query('INSERT INTO audit_logs (project_id, action, changed_by) VALUES ($1, $2, $3)', 
-      [result.rows[0].id, `Created project: ${name}`, user || 'Anonymous']);
+      [result.rows[0].id, `Created project`, user || 'Anonymous']);
     res.json(result.rows[0]);
   } catch (err) { res.status(500).send(err.message); }
 });
 
+// UPDATED: Now allows editing Start and End dates!
 app.put('/projects/:id', async (req, res) => {
   try {
-    const { name, progress, status, secondary_team, remarks, user } = req.body;
-    await pool.query('UPDATE projects SET name=$1, progress=$2, status=$3, secondary_team=$4, remarks=$5 WHERE id=$6', 
-      [name, progress, status, secondary_team, remarks, req.params.id]);
-    // Log the update
+    const { name, progress, status, secondary_team, remarks, start_date, end_date, user } = req.body;
+    await pool.query(
+      'UPDATE projects SET name=$1, progress=$2, status=$3, secondary_team=$4, remarks=$5, start_date=$6, end_date=$7 WHERE id=$8', 
+      [name, progress, status, secondary_team, remarks, start_date, end_date, req.params.id]
+    );
     await pool.query('INSERT INTO audit_logs (project_id, action, changed_by) VALUES ($1, $2, $3)', 
-      [req.params.id, `Updated: ${progress}% progress, status ${status}`, user || 'Anonymous']);
+      [req.params.id, `Updated details & progress to ${progress}%`, user || 'Anonymous']);
     res.json({ message: "Updated" });
   } catch (err) { res.status(500).send(err.message); }
 });
@@ -106,10 +112,8 @@ app.put('/projects/:id', async (req, res) => {
 app.delete('/projects/:id', async (req, res) => {
   try {
     const projectId = req.params.id;
-    // Log before deleting so we know what was lost
     await pool.query('INSERT INTO audit_logs (project_id, action, changed_by) VALUES ($1, $2, $3)', 
-      [projectId, `Deleted project ID: ${projectId}`, 'admin']);
-    
+      [projectId, `Deleted project ID: ${projectId}`, 'System']);
     await pool.query('DELETE FROM projects WHERE id = $1', [projectId]);
     res.json({ message: "Deleted" });
   } catch (err) { res.status(500).send(err.message); }
