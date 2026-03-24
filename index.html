@@ -109,7 +109,7 @@
             </div>
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
                 <h2 class="text-[10px] font-bold text-gray-400 uppercase mb-4 text-center">Team Workload Distribution</h2>
-                <div class="h-56"><canvas id="heatmapChart"></canvas></div>
+                <div class="h-64"><canvas id="heatmapChart"></canvas></div>
             </div>
         </div>
 
@@ -125,17 +125,14 @@
             <form id="projectForm" class="space-y-4">
                 <input type="hidden" id="edit-id">
                 <input type="text" id="name" placeholder="Project Name" class="w-full p-2 border rounded bg-gray-50 text-sm font-bold" required>
-                
                 <div class="space-y-1 border-t pt-2">
                     <label class="text-[10px] font-bold text-gray-400 uppercase">Primary Team</label>
                     <select id="team_id" class="w-full p-2 border rounded bg-gray-50 text-sm"></select>
                 </div>
-
                 <div class="space-y-1">
-                    <label class="text-[10px] font-bold text-gray-400 uppercase">Additional / Supporting Teams</label>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase">Additional Teams</label>
                     <div id="additionalTeamsContainer" class="bg-gray-50 p-2 border rounded grid grid-cols-2 gap-2 max-h-24 overflow-y-auto"></div>
                 </div>
-
                 <div class="grid grid-cols-2 gap-4 border-t pt-2">
                     <div class="space-y-1">
                         <label class="text-[10px] font-bold text-gray-400 uppercase">Start Date</label>
@@ -146,7 +143,6 @@
                         <input type="date" id="end_date" class="w-full p-2 border rounded bg-gray-50 text-sm" required>
                     </div>
                 </div>
-
                 <div class="grid grid-cols-2 gap-4">
                     <div class="space-y-1">
                         <label class="text-[10px] font-bold text-gray-400 uppercase">Progress %</label>
@@ -159,9 +155,7 @@
                         </select>
                     </div>
                 </div>
-
                 <textarea id="projectRemarks" placeholder="Remarks" rows="2" class="w-full p-2 border rounded bg-gray-50 text-sm"></textarea>
-                
                 <div class="flex gap-3 pt-4">
                     <button type="button" onclick="closeModal()" class="flex-1 text-gray-400 font-bold text-xs uppercase">Cancel</button>
                     <button type="submit" class="flex-1 bg-amd text-white py-3 rounded-lg font-bold text-xs uppercase shadow-lg">Save</button>
@@ -261,11 +255,11 @@
             const barColor = p.status === 'Completed' ? 'bg-green-500' : (p.status === 'Delayed' ? 'bg-red-500' : 'bg-blue-500');
             return `<tr class="${overdue ? 'delayed-alert' : ''} border-b border-gray-50 hover:bg-gray-50 transition">
                 <td class="p-4 font-bold text-gray-800">${p.name}</td>
-                <td class="p-4 text-[10px] font-bold text-gray-500">${p.team_name}</td>
-                <td class="p-4 text-[10px] font-bold text-gray-500">${p.secondary_team || '-'}</td>
+                <td class="p-4 text-[10px] font-bold text-gray-500 uppercase">${p.team_name}</td>
+                <td class="p-4 text-[10px] font-bold text-gray-500 uppercase">${p.secondary_team || '-'}</td>
                 <td class="p-4"><span class="px-2 py-1 rounded text-[9px] font-black uppercase ${p.status === 'On Track' ? 'bg-blue-50 text-blue-600' : p.status === 'Delayed' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}">${p.status}</span></td>
                 <td class="p-4"><div class="flex items-center gap-2"><div class="flex-grow bg-gray-200 rounded-full h-1.5 overflow-hidden"><div class="${barColor} h-full" style="width: ${p.progress}%"></div></div><span class="text-[10px] font-bold text-gray-400">${p.progress}%</span></div></td>
-                <td class="p-4 text-[10px] text-gray-500 truncate max-w-[100px]">${p.remarks || '-'}</td>
+                <td class="p-4 text-[10px] text-gray-500 max-w-[100px] truncate">${p.remarks || '-'}</td>
                 <td class="p-4 text-center space-x-2">
                     <button onclick="showDates('${p.name}', '${p.start_date}', '${p.end_date}')" class="bg-gray-100 px-2 py-1 rounded font-bold text-[9px]">📅 DATES</button>
                     <button onclick="editProject(${p.id})" class="text-blue-500 font-bold text-[10px]">EDIT</button>
@@ -292,6 +286,7 @@
 
     function renderHeatmap() {
         const teamData = {};
+        // Initialize ALL teams to ensure missing ones like PMDG1 are visible
         allTeamsList.forEach(t => teamData[t.name] = { 'On Track': 0, 'Delayed': 0, 'Completed': 0 });
         allProjects.forEach(p => { if(teamData[p.team_name]) teamData[p.team_name][p.status]++; });
 
@@ -312,16 +307,23 @@
             ]},
             options: { 
                 indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-                layout: { padding: { right: 40 } },
+                layout: { padding: { right: 50 } }, // Extra padding for total numbers
                 scales: { 
                     x: { stacked: true, display: false }, 
-                    y: { stacked: true, ticks: { font: { size: 13, weight: 'bold' }, color: '#374151' } } 
+                    y: { 
+                        stacked: true, 
+                        ticks: { 
+                            font: { size: 15, weight: 'bold' }, // Significantly bigger font
+                            color: '#374151',
+                            autoSkip: false // FORCE ALL TEAMS TO SHOW
+                        } 
+                    } 
                 },
                 plugins: { 
                     legend: { display: true, position: 'top', labels: { boxWidth: 10, font:{size:10} } },
                     datalabels: {
-                        display: (ctx) => ctx.datasetIndex === 2, // Only show total on the final segment
-                        anchor: 'end', align: 'right', color: '#000', font: { weight: 'bold', size: 12 },
+                        display: (ctx) => ctx.datasetIndex === 2, 
+                        anchor: 'end', align: 'right', color: '#000', font: { weight: 'bold', size: 13 },
                         formatter: (val, ctx) => {
                             const i = ctx.dataIndex;
                             const total = onTrack[i] + delayed[i] + completed[i];
@@ -396,7 +398,7 @@
         const primary = allTeamsList.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
         document.getElementById('team_id').innerHTML = primary;
         document.getElementById('teamFilter').innerHTML += primary;
-        document.getElementById('additionalTeamsContainer').innerHTML = allTeamsList.map(t => `<label class="flex items-center space-x-2 text-[10px] font-bold p-1 hover:bg-gray-100 rounded"><input type="checkbox" value="${t.name}" class="add-team-cb"><span>${t.name}</span></label>`).join('');
+        document.getElementById('additionalTeamsContainer').innerHTML = allTeamsList.map(t => `<label class="flex items-center space-x-2 text-[10px] font-bold p-1 hover:bg-gray-100 rounded cursor-pointer"><input type="checkbox" value="${t.name}" class="add-team-cb"><span>${t.name}</span></label>`).join('');
         loadData();
     }
 
