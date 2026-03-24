@@ -109,7 +109,7 @@
             </div>
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
                 <h2 class="text-[10px] font-bold text-gray-400 uppercase mb-4 text-center">Team Workload Distribution</h2>
-                <div class="h-48"><canvas id="heatmapChart"></canvas></div>
+                <div class="h-56"><canvas id="heatmapChart"></canvas></div>
             </div>
         </div>
 
@@ -133,8 +133,7 @@
 
                 <div class="space-y-1">
                     <label class="text-[10px] font-bold text-gray-400 uppercase">Additional / Supporting Teams</label>
-                    <div id="additionalTeamsContainer" class="bg-gray-50 p-2 border rounded grid grid-cols-2 gap-2 max-h-24 overflow-y-auto">
-                        </div>
+                    <div id="additionalTeamsContainer" class="bg-gray-50 p-2 border rounded grid grid-cols-2 gap-2 max-h-24 overflow-y-auto"></div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4 border-t pt-2">
@@ -161,11 +160,11 @@
                     </div>
                 </div>
 
-                <textarea id="projectRemarks" placeholder="Remarks / Reason for Delay" rows="2" class="w-full p-2 border rounded bg-gray-50 text-sm"></textarea>
+                <textarea id="projectRemarks" placeholder="Remarks" rows="2" class="w-full p-2 border rounded bg-gray-50 text-sm"></textarea>
                 
                 <div class="flex gap-3 pt-4">
-                    <button type="button" onclick="closeModal()" class="flex-1 text-gray-400 font-bold text-xs uppercase hover:text-black">Cancel</button>
-                    <button type="submit" class="flex-1 bg-amd text-white py-3 rounded-lg font-bold text-xs uppercase shadow-lg">Save Changes</button>
+                    <button type="button" onclick="closeModal()" class="flex-1 text-gray-400 font-bold text-xs uppercase">Cancel</button>
+                    <button type="submit" class="flex-1 bg-amd text-white py-3 rounded-lg font-bold text-xs uppercase shadow-lg">Save</button>
                 </div>
             </form>
         </div>
@@ -175,38 +174,22 @@
         <div class="bg-white rounded-2xl p-6 max-w-sm w-full text-center shadow-2xl">
             <h2 id="dates-modal-title" class="text-lg font-bold mb-4 text-gray-800"></h2>
             <div class="flex justify-between items-center bg-gray-50 p-4 rounded-lg border mb-4">
-                <div>
-                    <p class="text-[10px] font-bold text-gray-400 uppercase">Start Date</p>
-                    <p id="dates-modal-start" class="font-bold text-sm"></p>
-                </div>
+                <div><p class="text-[10px] font-bold text-gray-400">START</p><p id="dates-modal-start" class="font-bold text-sm"></p></div>
                 <div>➡️</div>
-                <div>
-                    <p class="text-[10px] font-bold text-gray-400 uppercase">End Date</p>
-                    <p id="dates-modal-end" class="font-bold text-sm"></p>
-                </div>
+                <div><p class="text-[10px] font-bold text-gray-400">END</p><p id="dates-modal-end" class="font-bold text-sm"></p></div>
             </div>
             <button onclick="document.getElementById('dates-modal').classList.add('hidden')" class="w-full bg-black text-white py-2 rounded-lg font-bold text-xs uppercase">Close</button>
         </div>
     </div>
 
     <div id="history-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-[60]">
-        <div class="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] flex flex-col">
+        <div class="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] flex flex-col text-sm">
             <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-black italic uppercase tracking-tighter">Project Audit Logs</h2>
-                <button onclick="closeHistory()" class="text-gray-400 hover:text-black font-bold">✕</button>
+                <h2 class="text-xl font-black italic uppercase">Audit Logs</h2>
+                <button onclick="closeHistory()" class="text-gray-400 hover:text-black">✕</button>
             </div>
-            <div class="overflow-y-auto flex-grow border rounded">
-                <table class="w-full text-left text-xs text-gray-700">
-                    <thead class="bg-gray-100 text-gray-500 font-bold uppercase sticky top-0">
-                        <tr><th class="p-3">Project</th><th class="p-3">Action</th><th class="p-3">User</th><th class="p-3">Time</th></tr>
-                    </thead>
-                    <tbody id="history-rows" class="divide-y divide-gray-200"></tbody>
-                </table>
-            </div>
-            <div class="mt-4 flex justify-between items-center">
-                <button id="admin-clear-btn" onclick="clearHistory()" class="hidden text-red-500 font-bold text-xs uppercase hover:underline">⚠️ Clear History</button>
-                <button onclick="closeHistory()" class="bg-gray-200 text-gray-800 px-4 py-2 rounded font-bold text-xs uppercase ml-auto">Close</button>
-            </div>
+            <div class="overflow-y-auto flex-grow border rounded"><table class="w-full text-left text-xs"><tbody id="history-rows"></tbody></table></div>
+            <div class="mt-4 flex justify-between"><button id="admin-clear-btn" onclick="clearHistory()" class="hidden text-red-500 font-bold text-xs uppercase">Clear History</button><button onclick="closeHistory()" class="bg-gray-100 px-4 py-2 rounded font-bold text-xs ml-auto">Close</button></div>
         </div>
     </div>
 </div>
@@ -215,7 +198,6 @@
     let statusChartInstance, heatmapChartInstance, allProjects = [], allTeamsList = [], currentPage = 1, currentUser = null, isLoginMode = true;
     let captchaNum1, captchaNum2;
 
-    // --- CAPTCHA & AUTH LOGIC ---
     function generateCaptcha() {
         captchaNum1 = Math.floor(Math.random() * 10) + 1;
         captchaNum2 = Math.floor(Math.random() * 10) + 1;
@@ -232,46 +214,20 @@
     }
 
     async function handleAuth() {
-        const errorEl = document.getElementById('login-error');
         const userAnswer = parseInt(document.getElementById('captcha-answer').value);
-        
-        if (userAnswer !== (captchaNum1 + captchaNum2)) {
-            errorEl.innerText = "Captcha Failed. Try again.";
-            errorEl.classList.remove('hidden');
-            generateCaptcha();
-            return;
-        }
-
+        if (userAnswer !== (captchaNum1 + captchaNum2)) { alert("Captcha Failed"); generateCaptcha(); return; }
         const username = document.getElementById('username').value;
         const password = document.getElementById('password').value;
-        const res = await fetch(isLoginMode ? '/login' : '/register', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
-        });
+        const res = await fetch(isLoginMode ? '/login' : '/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
         const data = await res.json();
-        
         if (res.ok) {
             if (!isLoginMode) { alert("Account Ready!"); toggleAuthMode(); }
-            else { 
-                currentUser = data.username; 
-                document.getElementById('login-page').style.display='none'; 
-                document.getElementById('main-app').style.display='block'; 
-                
-                // Show clear history button if admin
-                if(currentUser === 'admin') document.getElementById('admin-clear-btn').classList.remove('hidden');
-                init(); 
-            }
-        } else { 
-            errorEl.innerText = data.message; 
-            errorEl.classList.remove('hidden'); 
-            generateCaptcha(); 
-        }
+            else { currentUser = data.username; document.getElementById('login-page').style.display='none'; document.getElementById('main-app').style.display='block'; if(currentUser === 'admin') document.getElementById('admin-clear-btn').classList.remove('hidden'); init(); }
+        } else { alert(data.message); generateCaptcha(); }
     }
 
-    // Initialize the first captcha
     generateCaptcha();
 
-    // --- DATA LOADING ---
     async function loadData() {
         const team = document.getElementById('teamFilter').value;
         const status = document.getElementById('statusFilter').value;
@@ -280,67 +236,48 @@
         renderTable(); updateChart(); renderHeatmap(); renderGantt();
     }
 
-    // --- RENDER TABLE & FILTERS ---
     function renderTable() {
         const sortOrder = document.getElementById('sortOrder').value;
         const timeFilter = document.getElementById('timeFilter').value;
-        const today = new Date();
-        today.setHours(0,0,0,0);
+        const today = new Date(); today.setHours(0,0,0,0);
 
-        // Filter by Time First
-        let filteredProjects = allProjects.filter(p => {
+        let filtered = allProjects.filter(p => {
             const endDate = new Date(p.end_date);
             if (timeFilter === 'overdue') return endDate < today && p.status !== 'Completed';
             if (timeFilter === 'month') return endDate.getMonth() === today.getMonth() && endDate.getFullYear() === today.getFullYear();
             if (timeFilter === 'week') {
-                const nextWeek = new Date(today);
-                nextWeek.setDate(today.getDate() + 7);
+                const nextWeek = new Date(today); nextWeek.setDate(today.getDate() + 7);
                 return endDate >= today && endDate <= nextWeek;
             }
             return true;
         });
 
-        // Sort A-Z
-        filteredProjects.sort((a, b) => sortOrder === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
-
+        filtered.sort((a, b) => sortOrder === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
         const start = (currentPage - 1) * 10;
-        const paginated = filteredProjects.slice(start, start + 10);
+        const paginated = filtered.slice(start, start + 10);
         
         document.getElementById('project-list-rows').innerHTML = paginated.map(p => {
-            const endDate = new Date(p.end_date);
-            const overdue = endDate < today && p.status !== 'Completed';
-            
-            // Dynamic Progress Bar Color based on Status
+            const overdue = new Date(p.end_date) < today && p.status !== 'Completed';
             const barColor = p.status === 'Completed' ? 'bg-green-500' : (p.status === 'Delayed' ? 'bg-red-500' : 'bg-blue-500');
-
-            return `<tr class="${overdue ? 'delayed-alert' : ''} hover:bg-gray-50 transition border-b border-gray-50">
+            return `<tr class="${overdue ? 'delayed-alert' : ''} border-b border-gray-50 hover:bg-gray-50 transition">
                 <td class="p-4 font-bold text-gray-800">${p.name}</td>
-                <td class="p-4 text-[10px] font-bold text-gray-500 uppercase">${p.team_name}</td>
-                <td class="p-4 text-[10px] font-bold text-gray-500 uppercase">${p.secondary_team || '-'}</td>
+                <td class="p-4 text-[10px] font-bold text-gray-500">${p.team_name}</td>
+                <td class="p-4 text-[10px] font-bold text-gray-500">${p.secondary_team || '-'}</td>
                 <td class="p-4"><span class="px-2 py-1 rounded text-[9px] font-black uppercase ${p.status === 'On Track' ? 'bg-blue-50 text-blue-600' : p.status === 'Delayed' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}">${p.status}</span></td>
-                <td class="p-4">
-                    <div class="flex items-center gap-2">
-                        <div class="flex-grow bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                            <div class="${barColor} h-full" style="width: ${p.progress}%"></div>
-                        </div>
-                        <span class="text-[10px] font-bold text-gray-400">${p.progress}%</span>
-                    </div>
-                </td>
-                <td class="p-4 text-[10px] text-gray-500 max-w-[100px] truncate" title="${p.remarks || ''}">${p.remarks || '-'}</td>
+                <td class="p-4"><div class="flex items-center gap-2"><div class="flex-grow bg-gray-200 rounded-full h-1.5 overflow-hidden"><div class="${barColor} h-full" style="width: ${p.progress}%"></div></div><span class="text-[10px] font-bold text-gray-400">${p.progress}%</span></div></td>
+                <td class="p-4 text-[10px] text-gray-500 truncate max-w-[100px]">${p.remarks || '-'}</td>
                 <td class="p-4 text-center space-x-2">
-                    <button onclick="showDates('${p.name}', '${p.start_date}', '${p.end_date}')" class="text-gray-600 bg-gray-100 px-2 py-1 rounded font-bold text-[9px] uppercase hover:bg-gray-200">📅 Dates</button>
-                    <button onclick="editProject(${p.id})" class="text-blue-500 font-bold text-[10px] uppercase hover:underline">Edit</button>
-                    <button onclick="deleteProject(${p.id})" class="text-red-500 font-bold text-[10px] uppercase hover:underline">Del</button>
+                    <button onclick="showDates('${p.name}', '${p.start_date}', '${p.end_date}')" class="bg-gray-100 px-2 py-1 rounded font-bold text-[9px]">📅 DATES</button>
+                    <button onclick="editProject(${p.id})" class="text-blue-500 font-bold text-[10px]">EDIT</button>
+                    <button onclick="deleteProject(${p.id})" class="text-red-500 font-bold text-[10px]">DEL</button>
                 </td>
             </tr>`;
         }).join('');
-        
         document.getElementById('pageInfo').innerText = `Page ${currentPage}`;
-        document.getElementById('nextBtn').disabled = start + 10 >= filteredProjects.length;
+        document.getElementById('nextBtn').disabled = start + 10 >= filtered.length;
         document.getElementById('prevBtn').disabled = currentPage === 1;
     }
 
-    // --- CHART UPDATES ---
     function updateChart() {
         const counts = { 'On Track': 0, 'Delayed': 0, 'Completed': 0 };
         allProjects.forEach(p => counts[p.status]++);
@@ -349,48 +286,46 @@
         Chart.register(ChartDataLabels);
         statusChartInstance = new Chart(ctx, {
             type: 'pie', data: { labels: Object.keys(counts), datasets: [{ data: Object.values(counts), backgroundColor: ['#3B82F6', '#ED1C24', '#10B981'], borderWidth: 1 }] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } }, datalabels: { color: '#fff', font: { weight: 'bold', size: 10 }, formatter: (v) => v > 0 ? v : null } } }
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { font: { size: 10 } } }, datalabels: { color: '#fff', font: { weight: 'bold', size: 10 }, formatter: (v) => v > 0 ? v : null } } }
         });
     }
 
     function renderHeatmap() {
-        // Stacked Bar showing ALL teams and status colors
         const teamData = {};
         allTeamsList.forEach(t => teamData[t.name] = { 'On Track': 0, 'Delayed': 0, 'Completed': 0 });
-        
-        allProjects.forEach(p => {
-            if(teamData[p.team_name]) teamData[p.team_name][p.status]++;
-        });
+        allProjects.forEach(p => { if(teamData[p.team_name]) teamData[p.team_name][p.status]++; });
 
         const labels = Object.keys(teamData);
-        const onTrackData = labels.map(l => teamData[l]['On Track']);
-        const delayedData = labels.map(l => teamData[l]['Delayed']);
-        const completedData = labels.map(l => teamData[l]['Completed']);
+        const onTrack = labels.map(l => teamData[l]['On Track']);
+        const delayed = labels.map(l => teamData[l]['Delayed']);
+        const completed = labels.map(l => teamData[l]['Completed']);
 
         const ctx = document.getElementById('heatmapChart').getContext('2d');
         if (heatmapChartInstance) heatmapChartInstance.destroy();
         
         heatmapChartInstance = new Chart(ctx, {
             type: 'bar',
-            data: { 
-                labels: labels, 
-                datasets: [
-                    { label: 'Completed', data: completedData, backgroundColor: '#10B981' },
-                    { label: 'On Track', data: onTrackData, backgroundColor: '#3B82F6' },
-                    { label: 'Delayed', data: delayedData, backgroundColor: '#ED1C24' }
-                ] 
-            },
+            data: { labels: labels, datasets: [
+                { label: 'Completed', data: completed, backgroundColor: '#10B981' },
+                { label: 'On Track', data: onTrack, backgroundColor: '#3B82F6' },
+                { label: 'Delayed', data: delayed, backgroundColor: '#ED1C24' }
+            ]},
             options: { 
-                indexAxis: 'y', 
-                responsive: true, maintainAspectRatio: false,
-                scales: { x: { stacked: true }, y: { stacked: true, ticks: { font: { size: 9 } } } },
+                indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                layout: { padding: { right: 40 } },
+                scales: { 
+                    x: { stacked: true, display: false }, 
+                    y: { stacked: true, ticks: { font: { size: 13, weight: 'bold' }, color: '#374151' } } 
+                },
                 plugins: { 
-                    legend: { display: true, position: 'top', labels: { boxWidth: 10, font:{size:9} } },
+                    legend: { display: true, position: 'top', labels: { boxWidth: 10, font:{size:10} } },
                     datalabels: {
-                        color: '#fff', font: { weight: 'bold', size: 9 },
+                        display: (ctx) => ctx.datasetIndex === 2, // Only show total on the final segment
+                        anchor: 'end', align: 'right', color: '#000', font: { weight: 'bold', size: 12 },
                         formatter: (val, ctx) => {
-                            // Show total only on the last visible segment, or if value is > 0
-                            return val > 0 ? val : null;
+                            const i = ctx.dataIndex;
+                            const total = onTrack[i] + delayed[i] + completed[i];
+                            return total > 0 ? total : '';
                         }
                     } 
                 } 
@@ -398,7 +333,6 @@
         });
     }
 
-    // --- MODALS & INTERACTIONS ---
     function showDates(name, start, end) {
         document.getElementById('dates-modal-title').innerText = name;
         document.getElementById('dates-modal-start').innerText = start.split('T')[0];
@@ -414,17 +348,10 @@
         document.getElementById('name').value = p.name;
         document.getElementById('progress').value = p.progress;
         document.getElementById('status').value = p.status;
-        
-        // Setup dates for editing
         document.getElementById('start_date').value = p.start_date.split('T')[0];
         document.getElementById('end_date').value = p.end_date.split('T')[0];
-
-        // Setup multiple additional teams
-        const secTeams = p.secondary_team ? p.secondary_team.split(', ') : [];
-        document.querySelectorAll('.add-team-cb').forEach(cb => {
-            cb.checked = secTeams.includes(cb.value);
-        });
-
+        const sec = p.secondary_team ? p.secondary_team.split(', ') : [];
+        document.querySelectorAll('.add-team-cb').forEach(cb => cb.checked = sec.includes(cb.value));
         document.getElementById('projectRemarks').value = p.remarks || '';
         document.getElementById('modal').classList.remove('hidden');
     }
@@ -432,62 +359,25 @@
     document.getElementById('projectForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const id = document.getElementById('edit-id').value;
-        
-        // Gather selected additional teams
-        const selectedTeams = Array.from(document.querySelectorAll('.add-team-cb:checked')).map(cb => cb.value).join(', ');
-
-        const data = { 
-            name: document.getElementById('name').value, 
-            team_id: document.getElementById('team_id').value,
-            start_date: document.getElementById('start_date').value,
-            end_date: document.getElementById('end_date').value,
-            progress: document.getElementById('progress').value, 
-            status: document.getElementById('status').value, 
-            secondary_team: selectedTeams, 
-            remarks: document.getElementById('projectRemarks').value, 
-            user: currentUser 
-        };
-
+        const selected = Array.from(document.querySelectorAll('.add-team-cb:checked')).map(cb => cb.value).join(', ');
+        const data = { name: document.getElementById('name').value, team_id: document.getElementById('team_id').value, start_date: document.getElementById('start_date').value, end_date: document.getElementById('end_date').value, progress: document.getElementById('progress').value, status: document.getElementById('status').value, secondary_team: selected, remarks: document.getElementById('projectRemarks').value, user: currentUser };
         if (id) await fetch(`/projects/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
         else await fetch('/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-        
         closeModal(); loadData();
     });
 
-    // --- HISTORY ---
     async function showHistory() {
-        try {
-            const res = await fetch('/logs');
-            const logs = await res.json();
-            const rows = logs.map(log => `
-                <tr class="hover:bg-gray-50 border-b border-gray-100">
-                    <td class="p-3 font-bold text-gray-800">${log.project_name || 'Deleted Record'}</td>
-                    <td class="p-3 text-gray-600 text-[10px]">${log.action}</td>
-                    <td class="p-3 font-bold text-blue-600">${log.changed_by}</td>
-                    <td class="p-3 text-gray-400 text-[9px]">${new Date(log.timestamp).toLocaleString()}</td>
-                </tr>
-            `).join('');
-            document.getElementById('history-rows').innerHTML = rows || '<tr><td colspan="4" class="p-4 text-center">No history recorded yet.</td></tr>';
-            document.getElementById('history-modal').classList.remove('hidden');
-        } catch (err) { alert("Failed to load history."); }
+        const res = await fetch('/logs'); const logs = await res.json();
+        document.getElementById('history-rows').innerHTML = logs.map(l => `<tr class="border-b"><td class="p-2 font-bold">${l.project_name || 'Del'}</td><td class="p-2 text-gray-500">${l.action}</td><td class="p-2 font-bold text-blue-500">${l.changed_by}</td></tr>`).join('');
+        document.getElementById('history-modal').classList.remove('hidden');
     }
 
-    async function clearHistory() {
-        if(confirm("Admin: Are you sure you want to permanently delete all history logs?")) {
-            await fetch('/logs', { method: 'DELETE' });
-            showHistory();
-        }
-    }
+    async function clearHistory() { if(confirm("Clear All?")) { await fetch('/logs', { method: 'DELETE' }); showHistory(); } }
     function closeHistory() { document.getElementById('history-modal').classList.add('hidden'); }
-
-    // --- UTILS ---
-    async function deleteProject(id) { 
-        if (confirm("Delete this project?")) { await fetch(`/projects/${id}`, { method: 'DELETE' }); loadData(); } 
-    }
+    async function deleteProject(id) { if (confirm("Delete?")) { await fetch(`/projects/${id}`, { method: 'DELETE' }); loadData(); } }
 
     function renderGantt() {
-        const container = document.getElementById('gantt');
-        container.innerHTML = "";
+        const container = document.getElementById('gantt'); container.innerHTML = "";
         if (allProjects.length > 0) {
             const tasks = allProjects.map(p => ({ id: p.id.toString(), name: p.name, start: p.start_date.split('T')[0], end: p.end_date.split('T')[0], progress: p.progress }));
             new Gantt("#gantt", tasks, { view_mode: 'Week', bar_height: 20 });
@@ -502,31 +392,15 @@
     }
 
     async function init() {
-        const res = await fetch('/teams');
-        allTeamsList = await res.json(); // Save for heatmap
-        
-        const primaryOpts = allTeamsList.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
-        document.getElementById('team_id').innerHTML = primaryOpts;
-        document.getElementById('teamFilter').innerHTML += primaryOpts;
-
-        // Generate Multiple Checkboxes for Additional Teams
-        const cbHtml = allTeamsList.map(t => `
-            <label class="flex items-center space-x-2 p-1 hover:bg-gray-200 rounded cursor-pointer transition">
-                <input type="checkbox" value="${t.name}" class="add-team-cb text-amd">
-                <span class="text-[10px] font-bold text-gray-700">${t.name}</span>
-            </label>
-        `).join('');
-        document.getElementById('additionalTeamsContainer').innerHTML = cbHtml;
-
+        const res = await fetch('/teams'); allTeamsList = await res.json();
+        const primary = allTeamsList.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+        document.getElementById('team_id').innerHTML = primary;
+        document.getElementById('teamFilter').innerHTML += primary;
+        document.getElementById('additionalTeamsContainer').innerHTML = allTeamsList.map(t => `<label class="flex items-center space-x-2 text-[10px] font-bold p-1 hover:bg-gray-100 rounded"><input type="checkbox" value="${t.name}" class="add-team-cb"><span>${t.name}</span></label>`).join('');
         loadData();
     }
 
-    function openModal() { 
-        document.getElementById('projectForm').reset(); 
-        document.getElementById('edit-id').value = ""; 
-        document.querySelectorAll('.add-team-cb').forEach(cb => cb.checked = false);
-        document.getElementById('modal').classList.remove('hidden'); 
-    }
+    function openModal() { document.getElementById('projectForm').reset(); document.getElementById('edit-id').value = ""; document.querySelectorAll('.add-team-cb').forEach(cb => cb.checked = false); document.getElementById('modal').classList.remove('hidden'); }
     function closeModal() { document.getElementById('modal').classList.add('hidden'); }
     function changePage(dir) { currentPage += dir; renderTable(); }
 </script>
