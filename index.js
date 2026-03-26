@@ -20,7 +20,9 @@ app.post('/login', async (req, res) => {
     const { username, password } = req.body;
     const result = await pool.query('SELECT * FROM users WHERE username = $1 AND password = $2', [username, password]);
     if (result.rows.length > 0) {
-      res.json({ success: true, username: result.rows[0].username });
+      // NEW: Grab the role from the database. Default to editor just in case SQL hasn't run yet.
+      const userRole = result.rows[0].role || 'editor';
+      res.json({ success: true, username: result.rows[0].username, role: userRole });
     } else {
       res.status(401).json({ success: false, message: "Invalid username or password" });
     }
@@ -33,6 +35,7 @@ app.post('/register', async (req, res) => {
     const check = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
     if (check.rows.length > 0) return res.status(400).json({ success: false, message: "Username taken" });
     
+    // New users will automatically be given the 'viewer' role by the database default
     await pool.query('INSERT INTO users (username, password) VALUES ($1, $2)', [username, password]);
     res.json({ success: true });
   } catch (err) { res.status(500).send(err.message); }
@@ -73,7 +76,6 @@ app.get('/logs', async (req, res) => {
   } catch (err) { res.status(500).send(err.message); }
 });
 
-// NEW: Clear History Route (Admin Only)
 app.delete('/logs', async (req, res) => {
   try {
     await pool.query('DELETE FROM audit_logs');
@@ -95,7 +97,6 @@ app.post('/projects', async (req, res) => {
   } catch (err) { res.status(500).send(err.message); }
 });
 
-// UPDATED: Now allows editing Start and End dates!
 app.put('/projects/:id', async (req, res) => {
   try {
     const { name, progress, status, secondary_team, remarks, start_date, end_date, user } = req.body;

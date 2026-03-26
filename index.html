@@ -197,6 +197,7 @@
 
 <script>
     let statusChartInstance, heatmapChartInstance, allProjects = [], allTeamsList = [], currentPage = 1, currentUser = null, isLoginMode = true;
+    let currentUserRole = 'viewer'; // NEW: Variable to hold role
     let captchaNum1, captchaNum2;
 
     function generateCaptcha() {
@@ -221,9 +222,30 @@
         const password = document.getElementById('password').value;
         const res = await fetch(isLoginMode ? '/login' : '/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
         const data = await res.json();
+        
         if (res.ok) {
-            if (!isLoginMode) { alert("Account Ready!"); toggleAuthMode(); }
-            else { currentUser = data.username; document.getElementById('login-page').style.display='none'; document.getElementById('main-app').style.display='block'; if(currentUser === 'admin') document.getElementById('admin-clear-btn').classList.remove('hidden'); init(); }
+            if (!isLoginMode) { 
+                alert("Account Ready! Pending Admin approval for full access."); 
+                toggleAuthMode(); 
+            } else { 
+                currentUser = data.username; 
+                currentUserRole = data.role || 'editor'; // Capture their role from backend
+
+                document.getElementById('login-page').style.display='none'; 
+                document.getElementById('main-app').style.display='block'; 
+                
+                // --- ROLE BASED UI LOGIC ---
+                if(currentUserRole === 'admin') {
+                    document.getElementById('admin-clear-btn').classList.remove('hidden');
+                }
+                if(currentUserRole === 'viewer') {
+                    // Hide the +NEW button in the header if they are just a viewer
+                    const newBtn = document.querySelector('button[onclick="openModal()"]');
+                    if(newBtn) newBtn.style.display = 'none';
+                }
+                
+                init(); 
+            }
         } else { alert(data.message); generateCaptcha(); }
     }
 
@@ -260,6 +282,17 @@
         document.getElementById('project-list-rows').innerHTML = paginated.map(p => {
             const overdue = new Date(p.end_date) < today && p.status !== 'Completed';
             const barColor = p.status === 'Completed' ? 'bg-green-500' : (p.status === 'Delayed' ? 'bg-red-500' : 'bg-blue-500');
+            
+            // --- NEW: DYNAMIC ACTION BUTTONS BASED ON ROLE ---
+            let actionButtons = `<button onclick="showDates('${p.name}', '${p.start_date}', '${p.end_date}')" class="bg-gray-200 px-2 py-1 rounded font-bold text-[9px] text-black hover:bg-gray-300 transition">📅 DATES</button>`;
+            
+            if (currentUserRole === 'admin' || currentUserRole === 'editor') {
+                actionButtons += ` <button onclick="editProject(${p.id})" class="text-blue-600 font-bold text-[10px] hover:underline uppercase ml-2">EDIT</button>`;
+            }
+            if (currentUserRole === 'admin') {
+                actionButtons += ` <button onclick="deleteProject(${p.id})" class="text-red-600 font-bold text-[10px] hover:underline uppercase ml-2">DEL</button>`;
+            }
+
             return `<tr class="${overdue ? 'delayed-alert' : ''} border-b border-gray-100 hover:bg-gray-50 transition">
                 <td class="p-4 font-bold text-black">${p.name}</td>
                 <td class="p-4 text-[10px] font-bold text-black uppercase">${p.team_name}</td>
@@ -268,9 +301,7 @@
                 <td class="p-4"><div class="flex items-center gap-2"><div class="flex-grow bg-gray-200 rounded-full h-1.5 overflow-hidden"><div class="${barColor} h-full" style="width: ${p.progress}%"></div></div><span class="text-[10px] font-bold text-black">${p.progress}%</span></div></td>
                 <td class="p-4 text-[10px] text-black truncate max-w-[100px]">${p.remarks || '-'}</td>
                 <td class="p-4 text-center space-x-2">
-                    <button onclick="showDates('${p.name}', '${p.start_date}', '${p.end_date}')" class="bg-gray-200 px-2 py-1 rounded font-bold text-[9px] text-black hover:bg-gray-300 transition">📅 DATES</button>
-                    <button onclick="editProject(${p.id})" class="text-blue-600 font-bold text-[10px] hover:underline uppercase">EDIT</button>
-                    <button onclick="deleteProject(${p.id})" class="text-red-600 font-bold text-[10px] hover:underline uppercase">DEL</button>
+                    ${actionButtons}
                 </td>
             </tr>`;
         }).join('');
