@@ -11,17 +11,24 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,600;0,700;0,800;0,900;1,400;1,700;1,900&display=swap" rel="stylesheet">
+    
     <style>
         :root { --amd-red: #ED1C24; }
+        
+        /* ADDED: Global Font Override */
+        body { font-family: 'Montserrat', sans-serif !important; }
+        
         .bg-amd { background-color: var(--amd-red); }
         #main-app { display: none; }
         @keyframes pulse-red { 0%, 100% { background-color: #fff; } 50% { background-color: #fee2e2; } }
         .delayed-alert { animation: pulse-red 2s infinite; border-left: 5px solid var(--amd-red) !important; }
     </style>
 </head>
-<body class="bg-gray-100 font-sans text-black">
+<body class="bg-gray-100 text-black">
 
-<div id="login-page" class="fixed inset-0 bg-black flex items-center justify-center z-[100]">
+<div id="login-page" class="fixed inset-0 bg-blue-900 flex items-center justify-center z-[100]">
     <div class="bg-white p-10 rounded-2xl shadow-2xl max-w-sm w-full text-center">
         <h1 id="auth-title" class="text-2xl font-black italic uppercase mb-6 tracking-tighter">AMD Access</h1>
         <div class="space-y-4">
@@ -280,7 +287,7 @@
         Chart.register(ChartDataLabels);
         statusChartInstance = new Chart(ctx, {
             type: 'pie', data: { labels: Object.keys(counts), datasets: [{ data: Object.values(counts), backgroundColor: ['#3B82F6', '#ED1C24', '#10B981'], borderWidth: 1 }] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { font: { size: 10, color: '#000' } } }, datalabels: { color: '#fff', font: { weight: 'bold', size: 10 }, formatter: (v) => v > 0 ? v : null } } }
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { font: { size: 10, color: '#000', family: 'Montserrat' } } }, datalabels: { color: '#fff', font: { weight: 'bold', size: 10, family: 'Montserrat' }, formatter: (v) => v > 0 ? v : null } } }
         });
     }
 
@@ -312,17 +319,17 @@
                     y: { 
                         stacked: true, 
                         ticks: { 
-                            font: { size: 15, weight: 'bold' }, 
-                            color: '#000', // Solid black team labels
+                            font: { size: 15, weight: 'bold', family: 'Montserrat' }, 
+                            color: '#000', 
                             autoSkip: false 
                         } 
                     } 
                 },
                 plugins: { 
-                    legend: { display: true, position: 'top', labels: { boxWidth: 10, font:{size:10}, color: '#000' } },
+                    legend: { display: true, position: 'top', labels: { boxWidth: 10, font:{size:10, family: 'Montserrat'}, color: '#000' } },
                     datalabels: {
                         display: (ctx) => ctx.datasetIndex === 2, 
-                        anchor: 'end', align: 'right', color: '#000', font: { weight: 'bold', size: 13 },
+                        anchor: 'end', align: 'right', color: '#000', font: { weight: 'bold', size: 13, family: 'Montserrat' },
                         formatter: (val, ctx) => {
                             const i = ctx.dataIndex;
                             const total = onTrack[i] + delayed[i] + completed[i];
@@ -387,7 +394,7 @@
 
     function exportToPDF() {
         const { jsPDF } = window.jspdf; const doc = new jsPDF();
-        doc.setFontSize(18); doc.text("AMD STATUS REPORT", 14, 20);
+        doc.setFontSize(18); doc.setFont("helvetica", "bold"); doc.text("AMD STATUS REPORT", 14, 20);
         doc.autoTable({ startY: 30, head: [['Project', 'Team', 'Status', 'Progress']], body: allProjects.map(p => [p.name, p.team_name, p.status, p.progress + "%"]), headStyles: { fillColor: [237, 28, 36] } });
         doc.save("AMD_Report.pdf");
     }
