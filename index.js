@@ -98,6 +98,20 @@ app.delete('/logs', async (req, res) => {
 });
 
 // --- PROJECT MUTATIONS ---
+
+// NEW: Quick Progress Update (Efficiency First)
+app.patch('/projects/:id/progress', async (req, res) => {
+  try {
+    const { progress, user } = req.body;
+    await pool.query('UPDATE projects SET progress = $1 WHERE id = $2', [progress, req.params.id]);
+    
+    await pool.query('INSERT INTO audit_logs (project_id, action, changed_by) VALUES ($1, $2, $3)', 
+      [req.params.id, `Quick-update: Progress to ${progress}%`, user || 'Anonymous']);
+      
+    res.json({ success: true });
+  } catch (err) { res.status(500).send(err.message); }
+});
+
 app.post('/projects', async (req, res) => {
   try {
     const { name, team_id, secondary_team, status, start_date, end_date, progress, remarks, user } = req.body;

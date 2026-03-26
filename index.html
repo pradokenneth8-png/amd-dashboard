@@ -17,9 +17,14 @@
         :root { --amd-red: #ED1C24; }
         body { font-family: 'Montserrat', sans-serif !important; }
         .bg-amd { background-color: var(--amd-red); }
+        .accent-amd { accent-color: var(--amd-red); }
         #main-app { display: none; }
         @keyframes pulse-red { 0%, 100% { background-color: #fff; } 50% { background-color: #fee2e2; } }
         .delayed-alert { animation: pulse-red 2s infinite; border-left: 5px solid var(--amd-red) !important; }
+        
+        /* Custom range slider styling */
+        input[type=range]::-webkit-slider-runnable-track { background: #e5e7eb; height: 6px; border-radius: 3px; }
+        input[type=range]::-webkit-slider-thumb { margin-top: -5px; }
     </style>
 </head>
 <body class="bg-gray-100 text-black">
@@ -89,7 +94,7 @@
             <div class="max-h-[400px] overflow-auto">
                 <table class="w-full text-left text-sm">
                     <thead class="bg-gray-50 text-black text-[10px] font-bold uppercase sticky top-0 z-10">
-                        <tr><th class="p-4">Project</th><th class="p-4">Team</th><th class="p-4">Addl. Teams</th><th class="p-4">Status</th><th class="p-4 w-32">Progress</th><th class="p-4">Remarks</th><th class="p-4 text-center">Actions</th></tr>
+                        <tr><th class="p-4">Project</th><th class="p-4">Team</th><th class="p-4">Addl. Teams</th><th class="p-4">Status</th><th class="p-4 w-40">Progress</th><th class="p-4">Remarks</th><th class="p-4 text-center">Actions</th></tr>
                     </thead>
                     <tbody id="project-list-rows" class="divide-y divide-gray-100"></tbody>
                 </table>
@@ -195,6 +200,28 @@
         document.getElementById('kpi-progress').innerText = `${avgProg}%`;
     }
 
+    // EFFICIENCY FIRST: Quick Update Function
+    async function quickUpdateProgress(id, newValue) {
+        try {
+            const res = await fetch(`/projects/${id}/progress`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ progress: newValue, user: currentUser })
+            });
+            if (res.ok) {
+                // Refresh data silently to update KPIs and Charts without a flicker
+                const team = document.getElementById('teamFilter').value;
+                const status = document.getElementById('statusFilter').value;
+                const r = await fetch(`/projects?team_id=${team}&status=${status}&showArchived=${isArchiveView}`);
+                allProjects = await r.json();
+                updateKPIs(allProjects);
+                updateChart();
+                renderHeatmap();
+                renderGantt();
+            }
+        } catch (err) { console.error("Quick update failed", err); }
+    }
+
     function renderTable() {
         const sortOrder = document.getElementById('sortOrder').value;
         const timeFilter = document.getElementById('timeFilter').value;
@@ -210,6 +237,22 @@
         document.getElementById('project-list-rows').innerHTML = paginated.map(p => {
             const overdue = new Date(p.end_date) < today && p.status !== 'Completed';
             const barColor = p.status === 'Completed' ? 'bg-green-500' : (p.status === 'Delayed' ? 'bg-red-500' : 'bg-blue-500');
+            
+            // Interaction Logic: Viewers see bars, Editors see Sliders
+            let progressCell = '';
+            if (currentUserRole === 'viewer') {
+                progressCell = `<div class="flex items-center gap-2"><div class="flex-grow bg-gray-200 rounded-full h-1.5 overflow-hidden"><div class="${barColor} h-full" style="width: ${p.progress}%"></div></div><span class="text-[10px] font-bold">${p.progress}%</span></div>`;
+            } else {
+                progressCell = `
+                    <div class="flex flex-col gap-1 pr-4">
+                        <div class="flex justify-between items-center"><span id="prog-label-${p.id}" class="text-[9px] font-black">${p.progress}%</span></div>
+                        <input type="range" min="0" max="100" value="${p.progress}" 
+                            class="w-full accent-amd cursor-pointer" 
+                            oninput="document.getElementById('prog-label-${p.id}').innerText = this.value + '%'"
+                            onchange="quickUpdateProgress(${p.id}, this.value)">
+                    </div>`;
+            }
+
             let actions = `<button onclick="showDates('${p.name}', '${p.start_date}', '${p.end_date}')" class="bg-gray-200 px-2 py-1 rounded font-bold text-[9px]">📅 DATES</button>`;
             if (currentUserRole !== 'viewer') {
                 actions += ` <button onclick="editProject(${p.id})" class="text-blue-600 font-bold text-[10px] ml-2">EDIT</button>`;
@@ -222,7 +265,7 @@
                 <td class="p-4 text-[10px] font-bold uppercase">${p.team_name}</td>
                 <td class="p-4 text-[10px] font-bold uppercase">${p.secondary_team || '-'}</td>
                 <td class="p-4"><span class="px-2 py-1 rounded text-[9px] font-black uppercase ${p.status === 'On Track' ? 'bg-blue-50 text-blue-600' : p.status === 'Delayed' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}">${p.status}</span></td>
-                <td class="p-4"><div class="flex items-center gap-2"><div class="flex-grow bg-gray-200 rounded-full h-1.5 overflow-hidden"><div class="${barColor} h-full" style="width: ${p.progress}%"></div></div><span class="text-[10px] font-bold">${p.progress}%</span></div></td>
+                <td class="p-4">${progressCell}</td>
                 <td class="p-4 text-[10px] truncate max-w-[100px]">${p.remarks || '-'}</td>
                 <td class="p-4 text-center">${actions}</td>
             </tr>`;
@@ -232,7 +275,8 @@
     async function init() {
         const res = await fetch('/teams'); allTeamsList = await res.json();
         const primary = allTeamsList.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
-        document.getElementById('teamFilter').innerHTML += primary;
+        const filterEl = document.getElementById('teamFilter');
+        if (filterEl.options.length <= 1) filterEl.innerHTML += primary;
         loadData();
     }
     
