@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
 const path = require('path');
-const nodemailer = require('nodemailer'); // NEW: Import Nodemailer
+const nodemailer = require('nodemailer'); 
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -15,12 +15,18 @@ const pool = new Pool({
   connectionString: 'postgresql://neondb_owner:npg_Szu1CKI8pqYN@ep-delicate-dawn-a1thm5ic-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require',
 });
 
-// NEW: Configure Mail Transporter
+// --- UPDATED: Microsoft Office 365 / Outlook Transporter ---
 const transporter = nodemailer.createTransport({
-  service: 'gmail', // Standard service
+  host: "smtp.office365.com",
+  port: 587,
+  secure: false, // Must be false for port 587
   auth: {
     user: process.env.EMAIL_USER, 
-    pass: process.env.EMAIL_PASS  // Use App Password for Gmail
+    pass: process.env.EMAIL_PASS  
+  },
+  tls: {
+    ciphers: 'SSLv3',
+    rejectUnauthorized: false // Prevents connection drops in corporate networks
   }
 });
 
@@ -62,8 +68,8 @@ app.post('/test-email', async (req, res) => {
         const mailOptions = {
             from: process.env.EMAIL_USER,
             to: adminEmail,
-            subject: '🚀 AMD Dashboard - System Test',
-            text: `Connection Successful! Your AMD Dashboard is now authorized to send automated reports. \n\nTimestamp: ${new Date().toLocaleString()}`
+            subject: '🚀 AMD Dashboard - Microsoft 365 Test',
+            text: `Connection Successful! Your AMD Dashboard is now authorized via Microsoft Office 365. \n\nTimestamp: ${new Date().toLocaleString()}`
         };
 
         await transporter.sendMail(mailOptions);
