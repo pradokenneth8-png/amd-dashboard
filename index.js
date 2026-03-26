@@ -20,7 +20,6 @@ app.post('/login', async (req, res) => {
     const { username, password } = req.body;
     const result = await pool.query('SELECT * FROM users WHERE username = $1 AND password = $2', [username, password]);
     if (result.rows.length > 0) {
-      // NEW: Grab the role from the database. Default to editor just in case SQL hasn't run yet.
       const userRole = result.rows[0].role || 'editor';
       res.json({ success: true, username: result.rows[0].username, role: userRole });
     } else {
@@ -35,7 +34,6 @@ app.post('/register', async (req, res) => {
     const check = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
     if (check.rows.length > 0) return res.status(400).json({ success: false, message: "Username taken" });
     
-    // New users will automatically be given the 'viewer' role by the database default
     await pool.query('INSERT INTO users (username, password) VALUES ($1, $2)', [username, password]);
     res.json({ success: true });
   } catch (err) { res.status(500).send(err.message); }
@@ -49,16 +47,30 @@ app.get('/teams', async (req, res) => {
   } catch (err) { res.status(500).send(err.message); }
 });
 
+// UPDATED: Fetches projects based on Active vs Archived status
 app.get('/projects', async (req, res) => {
   try {
-    const { team_id, status } = req.query;
+    const { team_id, status, showArchived } = req.query;
     let query = 'SELECT p.*, t.name as team_name FROM projects p JOIN teams t ON p.team_id = t.id';
     let params = [];
     let conditions = [];
-    if (team_id && team_id !== "all") { params.push(team_id); conditions.push(`p.team_id = $${params.length}`); }
-    if (status && status !== "all") { params.push(status); conditions.push(`p.status = $${params.length}`); }
+
+    // Filter by archived status (Defaults to showing active projects)
+    const isArchived = showArchived === 'true';
+    conditions.push(`p.archived = ${isArchived ? 'TRUE' : 'FALSE'}`);
+
+    if (team_id && team_id !== "all") { 
+        params.push(team_id); 
+        conditions.push(`p.team_id = $${params.length}`); 
+    }
+    if (status && status !== "all") { 
+        params.push(status); 
+        conditions.push(`p.status = $${params.length}`); 
+    }
+
     if (conditions.length > 0) query += ' WHERE ' + conditions.join(' AND ');
     query += ' ORDER BY p.id DESC';
+
     const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err) { res.status(500).send(err.message); }
@@ -108,6 +120,17 @@ app.put('/projects/:id', async (req, res) => {
       [req.params.id, `Updated details & progress to ${progress}%`, user || 'Anonymous']);
     res.json({ message: "Updated" });
   } catch (err) { res.status(500).send(err.message); }
+});
+
+// NEW: Archive Route
+app.put('/projects/:id/archive', async (req, res) => {
+    try {
+        const { user } = req.body;
+        await pool.query('UPDATE projects SET archived = TRUE WHERE id = $1', [req.params.id]);
+        await pool.query('INSERT INTO audit_logs (project_id, action, changed_by) VALUES ($1, $2, $3)', 
+            [req.params.id, `Project moved to Archive`, user || 'Anonymous']);
+        res.json({ message: "Project Archived" });
+    } catch (err) { res.status(500).send(err.message); }
 });
 
 app.delete('/projects/:id', async (req, res) => {

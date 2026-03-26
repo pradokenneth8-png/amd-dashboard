@@ -77,6 +77,9 @@
                 <button onclick="showHistory()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded-full font-bold text-[10px] transition">📜 LOGS</button>
                 <button onclick="exportToPDF()" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-full font-bold text-[10px]">📊 PDF</button>
                 <button onclick="exportToExcel()" class="bg-green-700 hover:bg-green-600 text-white px-3 py-1 rounded-full font-bold text-[10px]">📊 EXCEL</button>
+                
+                <button id="view-archive-btn" onclick="toggleArchiveView()" class="bg-gray-800 border border-gray-600 text-gray-300 px-3 py-1 rounded-full font-bold text-[10px] hover:text-white transition">📂 VIEW ARCHIVE</button>
+
                 <button id="header-new-btn" onclick="openModal()" class="bg-amd hover:bg-red-700 text-white px-3 py-1 rounded-full font-bold text-[10px]">+ NEW</button>
                 <button onclick="location.reload()" class="text-gray-400 hover:text-white text-[10px] font-bold uppercase ml-2">Logout</button>
             </div>
@@ -225,6 +228,7 @@
 <script>
     let statusChartInstance, heatmapChartInstance, allProjects = [], allTeamsList = [], currentPage = 1, currentUser = null, isLoginMode = true;
     let currentUserRole = 'viewer';
+    let isArchiveView = false; // TRACKING ARCHIVE STATE
     let captchaNum1, captchaNum2;
 
     function generateCaptcha() {
@@ -271,10 +275,11 @@
 
     generateCaptcha();
 
+    // UPDATED: Fetches projects based on archive state
     async function loadData() {
         const team = document.getElementById('teamFilter').value;
         const status = document.getElementById('statusFilter').value;
-        const res = await fetch(`/projects?team_id=${team}&status=${status}`);
+        const res = await fetch(`/projects?team_id=${team}&status=${status}&showArchived=${isArchiveView}`);
         allProjects = await res.json();
         updateKPIs(allProjects);
         updateNotifications(allProjects);
@@ -300,15 +305,20 @@
         const dueSoon = new Date();
         dueSoon.setDate(today.getDate() + 2);
         let alerts = [];
-        projects.forEach(p => {
-            const endDate = new Date(p.end_date);
-            if (endDate > today && endDate <= dueSoon && p.status !== 'Completed') {
-                alerts.push({ type: 'deadline', msg: `<strong>${p.name}</strong> due in < 48hrs!` });
-            }
-            if (p.status === 'Delayed' && parseInt(p.progress) === 0) {
-                alerts.push({ type: 'stagnant', msg: `<strong>${p.name}</strong> is stagnant (0%).` });
-            }
-        });
+        
+        // Only show alerts for active projects
+        if (!isArchiveView) {
+            projects.forEach(p => {
+                const endDate = new Date(p.end_date);
+                if (endDate > today && endDate <= dueSoon && p.status !== 'Completed') {
+                    alerts.push({ type: 'deadline', msg: `<strong>${p.name}</strong> due in < 48hrs!` });
+                }
+                if (p.status === 'Delayed' && parseInt(p.progress) === 0) {
+                    alerts.push({ type: 'stagnant', msg: `<strong>${p.name}</strong> is stagnant (0%).` });
+                }
+            });
+        }
+
         if (alerts.length > 0) {
             badge.innerText = `${alerts.length} ALERTS`;
             badge.classList.remove('hidden');
@@ -336,12 +346,26 @@
         filtered.sort((a, b) => sortOrder === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
         const start = (currentPage - 1) * 10;
         const paginated = filtered.slice(start, start + 10);
+        
         document.getElementById('project-list-rows').innerHTML = paginated.map(p => {
             const overdue = new Date(p.end_date) < today && p.status !== 'Completed';
             const barColor = p.status === 'Completed' ? 'bg-green-500' : (p.status === 'Delayed' ? 'bg-red-500' : 'bg-blue-500');
-            let actionButtons = `<button onclick="showDates('${p.name}', '${p.start_date}', '${p.end_date}')" class="bg-gray-200 px-2 py-1 rounded font-bold text-[9px] text-black">📅 DATES</button>`;
-            if (currentUserRole === 'admin' || currentUserRole === 'editor') actionButtons += ` <button onclick="editProject(${p.id})" class="text-blue-600 font-bold text-[10px] uppercase ml-2">EDIT</button>`;
-            if (currentUserRole === 'admin') actionButtons += ` <button onclick="deleteProject(${p.id})" class="text-red-600 font-bold text-[10px] uppercase ml-2">DEL</button>`;
+            
+            // ACTION BUTTONS WITH ARCHIVE LOGIC
+            let actionButtons = `<button onclick="showDates('${p.name}', '${p.start_date}', '${p.end_date}')" class="bg-gray-200 px-2 py-1 rounded font-bold text-[9px] text-black hover:bg-gray-300">📅 DATES</button>`;
+            
+            if (currentUserRole === 'admin' || currentUserRole === 'editor') {
+                actionButtons += ` <button onclick="editProject(${p.id})" class="text-blue-600 font-bold text-[10px] uppercase ml-2">EDIT</button>`;
+                
+                // Show ARCHIVE button only for Completed active projects
+                if (p.status === 'Completed' && !p.archived && !isArchiveView) {
+                    actionButtons += ` <button onclick="archiveProject(${p.id})" class="text-green-600 font-bold text-[10px] uppercase ml-2">ARCHIVE</button>`;
+                }
+            }
+            if (currentUserRole === 'admin') {
+                actionButtons += ` <button onclick="deleteProject(${p.id})" class="text-red-600 font-bold text-[10px] uppercase ml-2">DEL</button>`;
+            }
+
             return `<tr class="${overdue ? 'delayed-alert' : ''} border-b border-gray-100 hover:bg-gray-50 transition">
                 <td class="p-4 font-bold text-black">${p.name}</td>
                 <td class="p-4 text-[10px] font-bold text-black uppercase">${p.team_name}</td>
@@ -355,6 +379,26 @@
         document.getElementById('pageInfo').innerText = `Page ${currentPage}`;
         document.getElementById('nextBtn').disabled = start + 10 >= filtered.length;
         document.getElementById('prevBtn').disabled = currentPage === 1;
+    }
+
+    function toggleArchiveView() {
+        isArchiveView = !isArchiveView;
+        const btn = document.getElementById('view-archive-btn');
+        btn.innerText = isArchiveView ? "⬅️ ACTIVE LIST" : "📂 VIEW ARCHIVE";
+        btn.classList.toggle('bg-blue-900');
+        btn.classList.toggle('text-white');
+        loadData();
+    }
+
+    async function archiveProject(id) {
+        if (confirm("Move this project to Archive? It will be hidden from the active list.")) {
+            await fetch(`/projects/${id}/archive`, { 
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user: currentUser })
+            });
+            loadData();
+        }
     }
 
     function updateChart() {
@@ -467,7 +511,6 @@
         doc.save("AMD_Report.pdf");
     }
 
-    // NEW EXCEL EXPORT FUNCTION
     function exportToExcel() {
         const dataToExport = allProjects.map(p => ({
             'Project Name': p.name,
