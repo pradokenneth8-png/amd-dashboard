@@ -9,162 +9,122 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,600;0,700;0,800;0,900;1,400;1,700;1,900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
         :root { --amd-red: #ED1C24; }
         body { font-family: 'Montserrat', sans-serif !important; }
         .bg-amd { background-color: var(--amd-red); }
-        .accent-amd { accent-color: var(--amd-red); }
         #main-app { display: none; }
-        @keyframes pulse-red { 0%, 100% { background-color: #fff; } 50% { background-color: #fee2e2; } }
-        .delayed-alert { animation: pulse-red 2s infinite; border-left: 5px solid var(--amd-red) !important; }
     </style>
 </head>
 <body class="bg-gray-100 text-black">
 
 <div id="login-page" class="fixed inset-0 bg-blue-900 flex items-center justify-center z-[100]">
     <div class="bg-white p-10 rounded-2xl shadow-2xl max-w-sm w-full text-center">
-        <h1 id="auth-title" class="text-2xl font-black italic uppercase mb-6 tracking-tighter">AMD Access</h1>
-        <div id="auth-form-container" class="space-y-4">
-            <input type="text" id="username" placeholder="Username" class="w-full p-3 border rounded-lg bg-gray-50 text-sm text-black">
-            <input type="password" id="password" placeholder="Password" class="w-full p-3 border rounded-lg bg-gray-50 text-sm text-black">
-            <div class="bg-gray-100 p-3 rounded-lg flex items-center justify-between border border-gray-200">
-                <span class="text-xs font-bold text-black">Security: What is <span id="captcha-question" class="text-black text-sm"></span>?</span>
-                <input type="number" id="captcha-answer" class="w-16 p-1 text-center border rounded text-sm font-bold text-black">
-            </div>
-            <button id="auth-btn" onclick="handleAuth()" class="w-full bg-amd text-white py-3 rounded-lg font-bold uppercase shadow-lg hover:bg-red-700 transition">Unlock Dashboard</button>
-        </div>
-        <div class="mt-6 pt-4 border-t border-gray-100">
-            <p id="auth-toggle-text" class="text-xs text-black font-bold">Don't have an account?</p>
-            <button onclick="toggleAuthMode()" id="auth-toggle-btn" class="text-amd font-bold text-xs uppercase hover:underline mt-1">Create Account</button>
+        <h1 class="text-2xl font-black italic uppercase mb-6 tracking-tighter">AMD Access</h1>
+        <div class="space-y-4">
+            <input type="text" id="username" placeholder="Username" class="w-full p-3 border rounded-lg bg-gray-50 text-sm">
+            <input type="password" id="password" placeholder="Password" class="w-full p-3 border rounded-lg bg-gray-50 text-sm">
+            <button onclick="handleAuth()" class="w-full bg-amd text-white py-3 rounded-lg font-bold uppercase shadow-lg hover:bg-red-700 transition">Unlock Dashboard</button>
         </div>
     </div>
 </div>
 
 <div id="main-app">
     <header class="bg-black text-white p-4 shadow-xl border-b-4 border-amd sticky top-0 z-50">
-        <div class="container mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-            <h1 class="text-xl font-black italic tracking-tighter uppercase">Asset Management Department</h1>
-            <div class="flex flex-wrap gap-2 items-center">
-                <select id="timeFilter" onchange="renderTable()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold text-yellow-400">
-                    <option value="all">ALL DATES</option>
-                    <option value="overdue">⚠️ OVERDUE</option>
-                </select>
-                <select id="statusFilter" onchange="loadData()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold">
-                    <option value="all">ALL STATUS</option>
-                    <option value="On Track">ON TRACK</option>
-                    <option value="Delayed">DELAYED</option>
-                    <option value="Completed">COMPLETED</option>
-                </select>
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-black italic uppercase">Asset Management Department</h1>
+            <div class="flex items-center gap-4">
                 <select id="teamFilter" onchange="loadData()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold">
                     <option value="all">ALL TEAMS</option>
                 </select>
-                <button onclick="showHistory()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded-full font-bold text-[10px] transition">📜 LOGS</button>
-                <button onclick="exportToPDF()" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-full font-bold text-[10px]">📊 PDF</button>
-                <button onclick="exportToExcel()" class="bg-green-700 hover:bg-green-600 text-white px-3 py-1 rounded-full font-bold text-[10px]">📊 EXCEL</button>
-                <button id="view-archive-btn" onclick="toggleArchiveView()" class="bg-gray-800 border border-gray-600 text-gray-300 px-3 py-1 rounded-full font-bold text-[10px] hover:text-white transition">📂 VIEW ARCHIVE</button>
-                <button id="header-new-btn" onclick="openModal()" class="bg-amd hover:bg-red-700 text-white px-3 py-1 rounded-full font-bold text-[10px]">+ NEW</button>
-                <button onclick="location.reload()" class="text-gray-400 hover:text-white text-[10px] font-bold uppercase ml-2">Logout</button>
+                <button onclick="location.reload()" class="text-gray-400 hover:text-white text-[10px] font-bold uppercase">Logout</button>
             </div>
         </div>
     </header>
 
     <main class="container mx-auto p-4 space-y-6">
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-blue-600"><p class="text-[10px] font-bold text-gray-500 uppercase">Total Projects</p><h3 id="kpi-total" class="text-2xl font-black text-black">0</h3></div>
-            <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-green-500"><p class="text-[10px] font-bold text-gray-500 uppercase">On-Time Rate</p><h3 id="kpi-ontime" class="text-2xl font-black text-black">0%</h3></div>
-            <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-red-500"><p class="text-[10px] font-bold text-gray-500 uppercase">Active Delays</p><h3 id="kpi-delays" class="text-2xl font-black text-black">0</h3></div>
-            <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-yellow-500"><p class="text-[10px] font-bold text-gray-500 uppercase">Avg. Progress</p><h3 id="kpi-progress" class="text-2xl font-black text-black">0%</h3></div>
+            <div class="bg-white p-4 rounded-xl shadow border-l-4 border-blue-600">
+                <p class="text-[10px] font-bold text-gray-500 uppercase">Total Projects</p>
+                <h3 id="kpi-total" class="text-2xl font-black">0</h3>
+            </div>
+            <div class="bg-white p-4 rounded-xl shadow border-l-4 border-green-500">
+                <p class="text-[10px] font-bold text-gray-500 uppercase">On-Time Rate</p>
+                <h3 id="kpi-ontime" class="text-2xl font-black">0%</h3>
+            </div>
+            <div class="bg-white p-4 rounded-xl shadow border-l-4 border-red-500">
+                <p class="text-[10px] font-bold text-gray-500 uppercase">Active Delays</p>
+                <h3 id="kpi-delays" class="text-2xl font-black">0</h3>
+            </div>
+            <div class="bg-white p-4 rounded-xl shadow border-l-4 border-yellow-500">
+                <p class="text-[10px] font-bold text-gray-500 uppercase">Avg. Progress</p>
+                <h3 id="kpi-progress" class="text-2xl font-black">0%</h3>
+            </div>
         </div>
 
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div class="max-h-[400px] overflow-auto">
-                <table class="w-full text-left text-sm">
-                    <thead class="bg-gray-50 text-black text-[10px] font-bold uppercase sticky top-0 z-10">
-                        <tr><th class="p-4">Project</th><th class="p-4">Team</th><th class="p-4">Addl. Teams</th><th class="p-4">Status</th><th class="p-4 w-40">Progress</th><th class="p-4">Remarks</th><th class="p-4 text-center">Actions</th></tr>
-                    </thead>
-                    <tbody id="project-list-rows" class="divide-y divide-gray-100"></tbody>
-                </table>
-            </div>
+        <div class="bg-white rounded-xl shadow border overflow-hidden">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-gray-50 text-[10px] font-bold uppercase sticky top-0">
+                    <tr>
+                        <th class="p-4">Project</th>
+                        <th class="p-4">Team</th>
+                        <th class="p-4">Status</th>
+                        <th class="p-4 w-48">Progress</th>
+                        <th class="p-4 text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="project-list-rows" class="divide-y divide-gray-100"></tbody>
+            </table>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 lg:col-span-1 flex flex-col">
-                <h2 class="text-[11px] font-bold text-black uppercase mb-4">Portfolio Health</h2>
-                <div class="h-48 flex items-center justify-center mb-4"><canvas id="statusChart"></canvas></div>
+            <div class="bg-white p-4 rounded-xl shadow">
+                <h2 class="text-[11px] font-bold uppercase mb-4">Portfolio Health</h2>
+                <div class="h-48"><canvas id="statusChart"></canvas></div>
             </div>
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
-                <h2 class="text-[11px] font-bold text-black uppercase mb-4 text-center">Team Workload Distribution</h2>
+            <div class="bg-white p-4 rounded-xl shadow lg:col-span-2">
+                <h2 class="text-[11px] font-bold uppercase mb-4 text-center">Team Workload Distribution</h2>
                 <div class="h-64"><canvas id="heatmapChart"></canvas></div>
             </div>
         </div>
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 overflow-x-auto"><h2 class="text-xs font-bold text-black uppercase mb-4">Timeline Performance</h2><div id="gantt"></div></div>
-    </main>
 
-    <div id="history-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-[60]">
-        <div class="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] flex flex-col text-sm">
-            <div class="flex justify-between items-center mb-4"><h2 class="text-xl font-black italic uppercase text-black">Audit Logs</h2><button onclick="closeHistory()" class="text-black hover:text-red-500 font-bold text-lg">✕</button></div>
-            <div class="overflow-y-auto flex-grow border rounded"><table class="w-full text-left text-xs"><tbody id="history-rows"></tbody></table></div>
-            <div class="mt-4 flex justify-end"><button id="admin-clear-btn" onclick="clearHistory()" class="hidden text-red-600 font-bold text-xs uppercase hover:underline mr-4">Clear History</button><button onclick="closeHistory()" class="bg-gray-200 hover:bg-gray-300 text-black px-4 py-2 rounded font-bold text-xs uppercase transition">Close</button></div>
+        <div class="bg-white p-6 rounded-xl shadow overflow-x-auto">
+            <h2 class="text-xs font-bold uppercase mb-4">Timeline Performance</h2>
+            <div id="gantt"></div>
         </div>
-    </div>
+    </main>
 </div>
 
 <script>
-    let statusChartInstance, heatmapChartInstance, allProjects = [], allTeamsList = [], currentPage = 1, currentUser = null, isLoginMode = true;
-    let currentUserRole = 'viewer';
-    let isArchiveView = false;
-    let captchaNum1, captchaNum2;
-
-    function generateCaptcha() {
-        captchaNum1 = Math.floor(Math.random() * 10) + 1;
-        captchaNum2 = Math.floor(Math.random() * 10) + 1;
-        document.getElementById('captcha-question').innerText = `${captchaNum1} + ${captchaNum2}`;
-        document.getElementById('captcha-answer').value = '';
-    }
-
-    function toggleAuthMode() {
-        isLoginMode = !isLoginMode;
-        document.getElementById('auth-title').innerText = isLoginMode ? "AMD Access" : "Join AMD Portal";
-        document.getElementById('auth-btn').innerText = isLoginMode ? "Unlock Dashboard" : "Create Account";
-        document.getElementById('auth-toggle-btn').innerText = isLoginMode ? "Create Account" : "Back to Login";
-        generateCaptcha();
-    }
+    let statusChartInstance, heatmapChartInstance, allProjects = [], allTeamsList = [], currentUser = null;
 
     async function handleAuth() {
-        const userAnswer = parseInt(document.getElementById('captcha-answer').value);
-        if (userAnswer !== (captchaNum1 + captchaNum2)) { alert("Captcha Failed"); generateCaptcha(); return; }
         const username = document.getElementById('username').value;
         const password = document.getElementById('password').value;
-
-        const res = await fetch(isLoginMode ? '/login' : '/register', { 
+        const res = await fetch('/login', { 
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' }, 
             body: JSON.stringify({ username, password }) 
         });
         const data = await res.json();
         if (res.ok) {
-            if (!isLoginMode) { alert("Account Ready!"); toggleAuthMode(); } 
-            else { 
-                currentUser = data.username; currentUserRole = data.role || 'viewer';
-                document.getElementById('login-page').style.display='none'; document.getElementById('main-app').style.display='block'; 
-                if(currentUserRole === 'admin') document.getElementById('admin-clear-btn').classList.remove('hidden');
-                init(); 
-            }
-        } else { alert(data.message); generateCaptcha(); }
+            currentUser = data.username;
+            document.getElementById('login-page').style.display='none';
+            document.getElementById('main-app').style.display='block';
+            init();
+        } else { alert("Login Failed"); }
     }
-
-    generateCaptcha();
 
     async function loadData() {
         const team = document.getElementById('teamFilter').value;
-        const status = document.getElementById('statusFilter').value;
-        const res = await fetch(`/projects?team_id=${team}&status=${status}&showArchived=${isArchiveView}`);
+        const res = await fetch(`/projects?team_id=${team}`);
         allProjects = await res.json();
-        updateKPIs(allProjects); renderTable(); updateChart(); renderHeatmap(); renderGantt();
+        updateKPIs(allProjects);
+        renderTable(); 
+        updateChart(); 
+        renderHeatmap(); 
+        renderGantt();
     }
 
     function updateKPIs(projects) {
@@ -177,63 +137,34 @@
         document.getElementById('kpi-progress').innerText = `${avgProg}%`;
     }
 
-    async function quickUpdateProgress(id, newValue) {
-        try {
-            await fetch(`/projects/${id}/progress`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ progress: newValue, user: currentUser })
-            });
-            loadData();
-        } catch (err) { console.error("Update failed", err); }
-    }
-
     function renderTable() {
-        const today = new Date(); today.setHours(0,0,0,0);
-        const paginated = allProjects.slice(0, 50); 
-        
-        document.getElementById('project-list-rows').innerHTML = paginated.map(p => {
-            const overdue = new Date(p.end_date) < today && p.status !== 'Completed';
-            const barColor = p.status === 'Completed' ? 'bg-green-500' : (p.status === 'Delayed' ? 'bg-red-500' : 'bg-blue-500');
-            
-            let progressUI = '';
-            if (currentUserRole === 'viewer') {
-                progressUI = `<div class="flex items-center gap-2"><div class="flex-grow bg-gray-200 rounded-full h-1.5 overflow-hidden"><div class="${barColor} h-full" style="width: ${p.progress}%"></div></div><span class="text-[10px] font-bold">${p.progress}%</span></div>`;
-            } else {
-                progressUI = `<div class="flex flex-col gap-1 pr-4">
-                    <div class="flex justify-between items-center"><span id="prog-label-${p.id}" class="text-[9px] font-black">${p.progress}%</span></div>
-                    <input type="range" min="0" max="100" value="${p.progress}" class="w-full accent-amd cursor-pointer" 
-                        oninput="document.getElementById('prog-label-${p.id}').innerText = this.value + '%'"
-                        onchange="quickUpdateProgress(${p.id}, this.value)">
-                </div>`;
-            }
-
-            let actions = `<button onclick="showDates('${p.name}', '${p.start_date}', '${p.end_date}')" class="bg-gray-200 px-2 py-1 rounded font-bold text-[9px]">📅 DATES</button>`;
-            if (currentUserRole === 'admin') actions += ` <button onclick="deleteProject(${p.id})" class="text-red-600 font-bold text-[10px] ml-2">DEL</button>`;
-
-            return `<tr class="${overdue ? 'delayed-alert' : ''} border-b border-gray-100 hover:bg-gray-50 transition">
+        document.getElementById('project-list-rows').innerHTML = allProjects.map(p => `
+            <tr class="border-b hover:bg-gray-50 transition">
                 <td class="p-4 font-bold text-black">${p.name}</td>
                 <td class="p-4 text-[10px] font-bold uppercase">${p.team_name}</td>
-                <td class="p-4 text-[10px] font-bold uppercase">${p.secondary_team || '-'}</td>
-                <td class="p-4"><span class="px-2 py-1 rounded text-[9px] font-black uppercase ${p.status === 'On Track' ? 'bg-blue-50 text-blue-600' : p.status === 'Delayed' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}">${p.status}</span></td>
-                <td class="p-4">${progressUI}</td>
-                <td class="p-4 text-[10px] truncate max-w-[100px]">${p.remarks || '-'}</td>
-                <td class="p-4 text-center">${actions}</td>
-            </tr>`;
-        }).join('');
+                <td class="p-4"><span class="px-2 py-1 rounded text-[9px] font-black uppercase ${p.status === 'On Track' ? 'bg-blue-50 text-blue-600' : 'bg-red-50 text-red-600'}">${p.status}</span></td>
+                <td class="p-4">
+                    <div class="flex items-center gap-2">
+                        <div class="flex-grow bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                            <div class="bg-blue-600 h-full" style="width: ${p.progress}%"></div>
+                        </div>
+                        <span class="text-[10px] font-bold">${p.progress}%</span>
+                    </div>
+                </td>
+                <td class="p-4 text-center"><button class="bg-gray-200 px-2 py-1 rounded font-bold text-[9px]">📅 DATES</button></td>
+            </tr>
+        `).join('');
     }
 
     async function init() {
-        const res = await fetch('/teams'); allTeamsList = await res.json();
+        const res = await fetch('/teams'); 
+        allTeamsList = await res.json();
         const primary = allTeamsList.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
-        const filterEl = document.getElementById('teamFilter');
-        if (filterEl.options.length <= 1) filterEl.innerHTML += primary;
+        document.getElementById('teamFilter').innerHTML += primary;
         loadData();
     }
     
-    function showHistory() { fetch('/logs').then(r => r.json()).then(logs => { document.getElementById('history-rows').innerHTML = logs.map(l => `<tr class="border-b border-gray-200"><td class="p-2 font-bold">${l.project_name || 'Deleted'}</td><td class="p-2 text-[10px]">${l.action}</td><td class="p-2 font-bold text-blue-600">${l.changed_by}</td><td class="p-2 text-[10px] font-bold">${new Date(l.timestamp).toLocaleString()}</td></tr>`).join(''); document.getElementById('history-modal').classList.remove('hidden'); }); }
-    function closeHistory() { document.getElementById('history-modal').classList.add('hidden'); }
-    function toggleArchiveView() { isArchiveView = !isArchiveView; loadData(); }
+    // Additional charting functions (updateChart, renderHeatmap, renderGantt) go here...
 </script>
 </body>
 </html>
