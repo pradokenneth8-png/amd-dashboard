@@ -75,7 +75,7 @@
                 
                 <button onclick="showHistory()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded-full font-bold text-[10px] transition">📜 LOGS</button>
                 <button onclick="exportToPDF()" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-full font-bold text-[10px]">📊 PDF</button>
-                <button onclick="openModal()" class="bg-amd hover:bg-red-700 text-white px-3 py-1 rounded-full font-bold text-[10px]">+ NEW</button>
+                <button id="header-new-btn" onclick="openModal()" class="bg-amd hover:bg-red-700 text-white px-3 py-1 rounded-full font-bold text-[10px]">+ NEW</button>
                 <button onclick="location.reload()" class="text-gray-400 hover:text-white text-[10px] font-bold uppercase ml-2">Logout</button>
             </div>
         </div>
@@ -126,9 +126,19 @@
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 lg:col-span-1">
-                <h2 class="text-[11px] font-bold text-black uppercase mb-4 text-center">Portfolio Health</h2>
-                <div class="h-48 flex items-center justify-center"><canvas id="statusChart"></canvas></div>
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 lg:col-span-1 flex flex-col">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-[11px] font-bold text-black uppercase">Portfolio Health</h2>
+                    <div id="alert-badge" class="hidden bg-red-600 text-white text-[9px] px-2 py-0.5 rounded-full font-bold animate-pulse">0 ALERTS</div>
+                </div>
+                <div class="h-48 flex items-center justify-center mb-4"><canvas id="statusChart"></canvas></div>
+                
+                <div class="border-t pt-4 flex-grow">
+                    <h3 class="text-[9px] font-black text-red-600 uppercase mb-2 tracking-widest">⚠️ Action Required</h3>
+                    <div id="notification-list" class="space-y-2 max-h-40 overflow-y-auto">
+                        <p class="text-[10px] text-gray-400 italic">No urgent alerts found.</p>
+                    </div>
+                </div>
             </div>
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
                 <h2 class="text-[11px] font-bold text-black uppercase mb-4 text-center">Team Workload Distribution</h2>
@@ -250,7 +260,7 @@
                 document.getElementById('main-app').style.display='block'; 
                 if(currentUserRole === 'admin') document.getElementById('admin-clear-btn').classList.remove('hidden');
                 if(currentUserRole === 'viewer') {
-                    const newBtn = document.querySelector('button[onclick="openModal()"]');
+                    const newBtn = document.getElementById('header-new-btn');
                     if(newBtn) newBtn.style.display = 'none';
                 }
                 init(); 
@@ -266,13 +276,12 @@
         const res = await fetch(`/projects?team_id=${team}&status=${status}`);
         allProjects = await res.json();
         
-        // NEW: Update KPIs on every load/filter
         updateKPIs(allProjects);
+        updateNotifications(allProjects); // Trigger the scan
         
         renderTable(); updateChart(); renderHeatmap(); renderGantt();
     }
 
-    // NEW: KPI Calculation Logic
     function updateKPIs(projects) {
         const total = projects.length;
         const onTrack = projects.filter(p => p.status === 'On Track' || p.status === 'Completed').length;
@@ -284,6 +293,41 @@
         document.getElementById('kpi-ontime').innerText = `${delRate}%`;
         document.getElementById('kpi-delays').innerText = delayed;
         document.getElementById('kpi-progress').innerText = `${avgProg}%`;
+    }
+
+    function updateNotifications(projects) {
+        const list = document.getElementById('notification-list');
+        const badge = document.getElementById('alert-badge');
+        const today = new Date();
+        const dueSoon = new Date();
+        dueSoon.setDate(today.getDate() + 2);
+
+        let alerts = [];
+
+        projects.forEach(p => {
+            const endDate = new Date(p.end_date);
+            // Alert 1: Due within 48 hours and not completed
+            if (endDate > today && endDate <= dueSoon && p.status !== 'Completed') {
+                alerts.push({ type: 'deadline', msg: `<strong>${p.name}</strong> due in < 48hrs!` });
+            }
+            // Alert 2: Delayed but 0% progress
+            if (p.status === 'Delayed' && parseInt(p.progress) === 0) {
+                alerts.push({ type: 'stagnant', msg: `<strong>${p.name}</strong> is stagnant (0%).` });
+            }
+        });
+
+        if (alerts.length > 0) {
+            badge.innerText = `${alerts.length} ALERTS`;
+            badge.classList.remove('hidden');
+            list.innerHTML = alerts.map(a => `
+                <div class="p-2 bg-red-50 border-l-2 border-red-600 rounded text-[9px] text-black">
+                    ${a.msg}
+                </div>
+            `).join('');
+        } else {
+            badge.classList.add('hidden');
+            list.innerHTML = `<p class="text-[10px] text-gray-400 italic text-center">No urgent alerts found.</p>`;
+        }
     }
 
     function renderTable() {
