@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
 const path = require('path');
+const nodemailer = require('nodemailer'); // NEW: Import Nodemailer
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -12,6 +13,15 @@ app.use(express.static(__dirname));
 
 const pool = new Pool({
   connectionString: 'postgresql://neondb_owner:npg_Szu1CKI8pqYN@ep-delicate-dawn-a1thm5ic-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require',
+});
+
+// NEW: Configure Mail Transporter
+const transporter = nodemailer.createTransport({
+  service: 'gmail', // Standard service
+  auth: {
+    user: process.env.EMAIL_USER, 
+    pass: process.env.EMAIL_PASS  // Use App Password for Gmail
+  }
 });
 
 // --- AUTHENTICATION ---
@@ -25,7 +35,7 @@ app.post('/login', async (req, res) => {
         success: true, 
         username: user.username, 
         role: user.role || 'viewer',
-        email: user.email // Return email for session context
+        email: user.email 
       });
     } else {
       res.status(401).json({ success: false, message: "Invalid username or password" });
@@ -35,14 +45,32 @@ app.post('/login', async (req, res) => {
 
 app.post('/register', async (req, res) => {
   try {
-    const { username, password, email } = req.body; // NEW: Expect email in request
+    const { username, password, email } = req.body;
     const check = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
     if (check.rows.length > 0) return res.status(400).json({ success: false, message: "Username taken" });
     
-    // UPDATED: Include email column in insertion
     await pool.query('INSERT INTO users (username, password, email) VALUES ($1, $2, $3)', [username, password, email]);
     res.json({ success: true });
   } catch (err) { res.status(500).send(err.message); }
+});
+
+// --- EMAIL TESTING ROUTE ---
+app.post('/test-email', async (req, res) => {
+    try {
+        const { adminEmail } = req.body;
+        
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: adminEmail,
+            subject: '🚀 AMD Dashboard - System Test',
+            text: `Connection Successful! Your AMD Dashboard is now authorized to send automated reports. \n\nTimestamp: ${new Date().toLocaleString()}`
+        };
+
+        await transporter.sendMail(mailOptions);
+        res.json({ success: true, message: "Test email sent!" });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
 });
 
 // --- CORE DATA ---

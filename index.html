@@ -220,7 +220,12 @@
                 <button onclick="closeHistory()" class="text-black hover:text-red-500 font-bold text-lg">✕</button>
             </div>
             <div class="overflow-y-auto flex-grow border rounded"><table class="w-full text-left text-xs"><tbody id="history-rows"></tbody></table></div>
-            <div class="mt-4 flex justify-between"><button id="admin-clear-btn" onclick="clearHistory()" class="hidden text-red-600 font-bold text-xs uppercase hover:underline">Clear History</button><button onclick="closeHistory()" class="bg-gray-200 hover:bg-gray-300 text-black px-4 py-2 rounded font-bold text-xs uppercase ml-auto transition">Close</button></div>
+            
+            <div class="mt-4 flex justify-between items-center gap-4">
+                <button id="admin-test-email" onclick="testEmailSystem()" class="hidden bg-blue-100 text-blue-700 font-bold text-[10px] px-3 py-1 rounded-full uppercase hover:bg-blue-200 transition">📧 Test Mail Server</button>
+                <button id="admin-clear-btn" onclick="clearHistory()" class="hidden text-red-600 font-bold text-xs uppercase hover:underline">Clear History</button>
+                <button onclick="closeHistory()" class="bg-gray-200 hover:bg-gray-300 text-black px-4 py-2 rounded font-bold text-xs uppercase ml-auto transition">Close</button>
+            </div>
         </div>
     </div>
 </div>
@@ -238,7 +243,6 @@
         document.getElementById('captcha-answer').value = '';
     }
 
-    // UPDATED: Dynamically adds/removes email field
     function toggleAuthMode() {
         isLoginMode = !isLoginMode;
         document.getElementById('auth-title').innerText = isLoginMode ? "AMD Access" : "Join AMD Portal";
@@ -258,7 +262,6 @@
         generateCaptcha();
     }
 
-    // UPDATED: Captures email for registration
     async function handleAuth() {
         const userAnswer = parseInt(document.getElementById('captcha-answer').value);
         if (userAnswer !== (captchaNum1 + captchaNum2)) { alert("Captcha Failed"); generateCaptcha(); return; }
@@ -502,10 +505,46 @@
         closeModal(); loadData();
     });
 
+    // UPDATED: Added Admin Check for the Test Email Button
     async function showHistory() {
-        const res = await fetch('/logs'); const logs = await res.json();
+        const res = await fetch('/logs'); 
+        const logs = await res.json();
         document.getElementById('history-rows').innerHTML = logs.map(l => `<tr class="border-b border-gray-200"><td class="p-2 font-bold text-black">${l.project_name || 'Deleted'}</td><td class="p-2 text-black text-[10px]">${l.action}</td><td class="p-2 font-bold text-blue-600">${l.changed_by}</td><td class="p-2 text-black text-[10px] font-bold">${new Date(l.timestamp).toLocaleString()}</td></tr>`).join('');
+        
+        if(currentUserRole === 'admin') {
+            document.getElementById('admin-test-email').classList.remove('hidden');
+        }
+        
         document.getElementById('history-modal').classList.remove('hidden');
+    }
+
+    // NEW: Function to trigger the email test
+    async function testEmailSystem() {
+        const adminEmail = prompt("Enter the recipient email address for the test:");
+        if (!adminEmail) return;
+
+        const btn = document.getElementById('admin-test-email');
+        btn.innerText = "⌛ SENDING...";
+        btn.disabled = true;
+        
+        try {
+            const res = await fetch('/test-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ adminEmail })
+            });
+            const data = await res.json();
+            if(data.success) {
+                alert("Success! Check your inbox.");
+            } else {
+                alert("Error: " + data.message);
+            }
+        } catch (err) {
+            alert("Failed to connect to the mail server.");
+        } finally {
+            btn.innerText = "📧 Test Mail Server";
+            btn.disabled = false;
+        }
     }
 
     async function clearHistory() { if(confirm("Clear All?")) { await fetch('/logs', { method: 'DELETE' }); showHistory(); } }
