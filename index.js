@@ -20,8 +20,13 @@ app.post('/login', async (req, res) => {
     const { username, password } = req.body;
     const result = await pool.query('SELECT * FROM users WHERE username = $1 AND password = $2', [username, password]);
     if (result.rows.length > 0) {
-      const userRole = result.rows[0].role || 'editor';
-      res.json({ success: true, username: result.rows[0].username, role: userRole });
+      const user = result.rows[0];
+      res.json({ 
+        success: true, 
+        username: user.username, 
+        role: user.role || 'viewer',
+        email: user.email // Return email for session context
+      });
     } else {
       res.status(401).json({ success: false, message: "Invalid username or password" });
     }
@@ -30,11 +35,12 @@ app.post('/login', async (req, res) => {
 
 app.post('/register', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, password, email } = req.body; // NEW: Expect email in request
     const check = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
     if (check.rows.length > 0) return res.status(400).json({ success: false, message: "Username taken" });
     
-    await pool.query('INSERT INTO users (username, password) VALUES ($1, $2)', [username, password]);
+    // UPDATED: Include email column in insertion
+    await pool.query('INSERT INTO users (username, password, email) VALUES ($1, $2, $3)', [username, password, email]);
     res.json({ success: true });
   } catch (err) { res.status(500).send(err.message); }
 });
@@ -47,7 +53,6 @@ app.get('/teams', async (req, res) => {
   } catch (err) { res.status(500).send(err.message); }
 });
 
-// UPDATED: Fetches projects based on Active vs Archived status
 app.get('/projects', async (req, res) => {
   try {
     const { team_id, status, showArchived } = req.query;
@@ -55,7 +60,6 @@ app.get('/projects', async (req, res) => {
     let params = [];
     let conditions = [];
 
-    // Filter by archived status (Defaults to showing active projects)
     const isArchived = showArchived === 'true';
     conditions.push(`p.archived = ${isArchived ? 'TRUE' : 'FALSE'}`);
 
@@ -122,7 +126,6 @@ app.put('/projects/:id', async (req, res) => {
   } catch (err) { res.status(500).send(err.message); }
 });
 
-// NEW: Archive Route
 app.put('/projects/:id/archive', async (req, res) => {
     try {
         const { user } = req.body;

@@ -29,7 +29,7 @@
 <div id="login-page" class="fixed inset-0 bg-blue-900 flex items-center justify-center z-[100]">
     <div class="bg-white p-10 rounded-2xl shadow-2xl max-w-sm w-full text-center">
         <h1 id="auth-title" class="text-2xl font-black italic uppercase mb-6 tracking-tighter">AMD Access</h1>
-        <div class="space-y-4">
+        <div id="auth-form-container" class="space-y-4">
             <input type="text" id="username" placeholder="Username" class="w-full p-3 border rounded-lg bg-gray-50 text-sm text-black">
             <input type="password" id="password" placeholder="Password" class="w-full p-3 border rounded-lg bg-gray-50 text-sm text-black">
             
@@ -228,7 +228,7 @@
 <script>
     let statusChartInstance, heatmapChartInstance, allProjects = [], allTeamsList = [], currentPage = 1, currentUser = null, isLoginMode = true;
     let currentUserRole = 'viewer';
-    let isArchiveView = false; // TRACKING ARCHIVE STATE
+    let isArchiveView = false;
     let captchaNum1, captchaNum2;
 
     function generateCaptcha() {
@@ -238,20 +238,41 @@
         document.getElementById('captcha-answer').value = '';
     }
 
+    // UPDATED: Dynamically adds/removes email field
     function toggleAuthMode() {
         isLoginMode = !isLoginMode;
         document.getElementById('auth-title').innerText = isLoginMode ? "AMD Access" : "Join AMD Portal";
+        
+        const existingEmail = document.getElementById('reg-email');
+        if (isLoginMode) {
+            if (existingEmail) existingEmail.remove();
+        } else {
+            if (!existingEmail) {
+                const input = `<input type="email" id="reg-email" placeholder="Email Address" class="w-full p-3 border rounded-lg bg-gray-50 text-sm text-black" required>`;
+                document.getElementById('password').insertAdjacentHTML('afterend', input);
+            }
+        }
+
         document.getElementById('auth-btn').innerText = isLoginMode ? "Unlock Dashboard" : "Create Account";
         document.getElementById('auth-toggle-btn').innerText = isLoginMode ? "Create Account" : "Back to Login";
         generateCaptcha();
     }
 
+    // UPDATED: Captures email for registration
     async function handleAuth() {
         const userAnswer = parseInt(document.getElementById('captcha-answer').value);
         if (userAnswer !== (captchaNum1 + captchaNum2)) { alert("Captcha Failed"); generateCaptcha(); return; }
+        
         const username = document.getElementById('username').value;
         const password = document.getElementById('password').value;
-        const res = await fetch(isLoginMode ? '/login' : '/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
+        const email = !isLoginMode ? document.getElementById('reg-email').value : null;
+
+        const res = await fetch(isLoginMode ? '/login' : '/register', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify({ username, password, email }) 
+        });
+        
         const data = await res.json();
         
         if (res.ok) {
@@ -275,7 +296,6 @@
 
     generateCaptcha();
 
-    // UPDATED: Fetches projects based on archive state
     async function loadData() {
         const team = document.getElementById('teamFilter').value;
         const status = document.getElementById('statusFilter').value;
@@ -306,7 +326,6 @@
         dueSoon.setDate(today.getDate() + 2);
         let alerts = [];
         
-        // Only show alerts for active projects
         if (!isArchiveView) {
             projects.forEach(p => {
                 const endDate = new Date(p.end_date);
@@ -351,13 +370,10 @@
             const overdue = new Date(p.end_date) < today && p.status !== 'Completed';
             const barColor = p.status === 'Completed' ? 'bg-green-500' : (p.status === 'Delayed' ? 'bg-red-500' : 'bg-blue-500');
             
-            // ACTION BUTTONS WITH ARCHIVE LOGIC
             let actionButtons = `<button onclick="showDates('${p.name}', '${p.start_date}', '${p.end_date}')" class="bg-gray-200 px-2 py-1 rounded font-bold text-[9px] text-black hover:bg-gray-300">📅 DATES</button>`;
             
             if (currentUserRole === 'admin' || currentUserRole === 'editor') {
                 actionButtons += ` <button onclick="editProject(${p.id})" class="text-blue-600 font-bold text-[10px] uppercase ml-2">EDIT</button>`;
-                
-                // Show ARCHIVE button only for Completed active projects
                 if (p.status === 'Completed' && !p.archived && !isArchiveView) {
                     actionButtons += ` <button onclick="archiveProject(${p.id})" class="text-green-600 font-bold text-[10px] uppercase ml-2">ARCHIVE</button>`;
                 }
