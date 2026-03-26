@@ -11,6 +11,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,600;0,700;0,800;0,900;1,400;1,700;1,900&display=swap" rel="stylesheet">
     
@@ -75,6 +76,7 @@
                 
                 <button onclick="showHistory()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded-full font-bold text-[10px] transition">📜 LOGS</button>
                 <button onclick="exportToPDF()" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-full font-bold text-[10px]">📊 PDF</button>
+                <button onclick="exportToExcel()" class="bg-green-700 hover:bg-green-600 text-white px-3 py-1 rounded-full font-bold text-[10px]">📊 EXCEL</button>
                 <button id="header-new-btn" onclick="openModal()" class="bg-amd hover:bg-red-700 text-white px-3 py-1 rounded-full font-bold text-[10px]">+ NEW</button>
                 <button onclick="location.reload()" class="text-gray-400 hover:text-white text-[10px] font-bold uppercase ml-2">Logout</button>
             </div>
@@ -132,7 +134,6 @@
                     <div id="alert-badge" class="hidden bg-red-600 text-white text-[9px] px-2 py-0.5 rounded-full font-bold animate-pulse">0 ALERTS</div>
                 </div>
                 <div class="h-48 flex items-center justify-center mb-4"><canvas id="statusChart"></canvas></div>
-                
                 <div class="border-t pt-4 flex-grow">
                     <h3 class="text-[9px] font-black text-red-600 uppercase mb-2 tracking-widest">⚠️ Action Required</h3>
                     <div id="notification-list" class="space-y-2 max-h-40 overflow-y-auto">
@@ -275,10 +276,8 @@
         const status = document.getElementById('statusFilter').value;
         const res = await fetch(`/projects?team_id=${team}&status=${status}`);
         allProjects = await res.json();
-        
         updateKPIs(allProjects);
-        updateNotifications(allProjects); // Trigger the scan
-        
+        updateNotifications(allProjects);
         renderTable(); updateChart(); renderHeatmap(); renderGantt();
     }
 
@@ -288,7 +287,6 @@
         const delayed = projects.filter(p => p.status === 'Delayed').length;
         const avgProg = total > 0 ? Math.round(projects.reduce((s, p) => s + parseInt(p.progress), 0) / total) : 0;
         const delRate = total > 0 ? Math.round((onTrack / total) * 100) : 0;
-
         document.getElementById('kpi-total').innerText = total;
         document.getElementById('kpi-ontime').innerText = `${delRate}%`;
         document.getElementById('kpi-delays').innerText = delayed;
@@ -301,29 +299,20 @@
         const today = new Date();
         const dueSoon = new Date();
         dueSoon.setDate(today.getDate() + 2);
-
         let alerts = [];
-
         projects.forEach(p => {
             const endDate = new Date(p.end_date);
-            // Alert 1: Due within 48 hours and not completed
             if (endDate > today && endDate <= dueSoon && p.status !== 'Completed') {
                 alerts.push({ type: 'deadline', msg: `<strong>${p.name}</strong> due in < 48hrs!` });
             }
-            // Alert 2: Delayed but 0% progress
             if (p.status === 'Delayed' && parseInt(p.progress) === 0) {
                 alerts.push({ type: 'stagnant', msg: `<strong>${p.name}</strong> is stagnant (0%).` });
             }
         });
-
         if (alerts.length > 0) {
             badge.innerText = `${alerts.length} ALERTS`;
             badge.classList.remove('hidden');
-            list.innerHTML = alerts.map(a => `
-                <div class="p-2 bg-red-50 border-l-2 border-red-600 rounded text-[9px] text-black">
-                    ${a.msg}
-                </div>
-            `).join('');
+            list.innerHTML = alerts.map(a => `<div class="p-2 bg-red-50 border-l-2 border-red-600 rounded text-[9px] text-black">${a.msg}</div>`).join('');
         } else {
             badge.classList.add('hidden');
             list.innerHTML = `<p class="text-[10px] text-gray-400 italic text-center">No urgent alerts found.</p>`;
@@ -334,7 +323,6 @@
         const sortOrder = document.getElementById('sortOrder').value;
         const timeFilter = document.getElementById('timeFilter').value;
         const today = new Date(); today.setHours(0,0,0,0);
-
         let filtered = allProjects.filter(p => {
             const endDate = new Date(p.end_date);
             if (timeFilter === 'overdue') return endDate < today && p.status !== 'Completed';
@@ -345,19 +333,15 @@
             }
             return true;
         });
-
         filtered.sort((a, b) => sortOrder === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
         const start = (currentPage - 1) * 10;
         const paginated = filtered.slice(start, start + 10);
-        
         document.getElementById('project-list-rows').innerHTML = paginated.map(p => {
             const overdue = new Date(p.end_date) < today && p.status !== 'Completed';
             const barColor = p.status === 'Completed' ? 'bg-green-500' : (p.status === 'Delayed' ? 'bg-red-500' : 'bg-blue-500');
-            
             let actionButtons = `<button onclick="showDates('${p.name}', '${p.start_date}', '${p.end_date}')" class="bg-gray-200 px-2 py-1 rounded font-bold text-[9px] text-black">📅 DATES</button>`;
             if (currentUserRole === 'admin' || currentUserRole === 'editor') actionButtons += ` <button onclick="editProject(${p.id})" class="text-blue-600 font-bold text-[10px] uppercase ml-2">EDIT</button>`;
             if (currentUserRole === 'admin') actionButtons += ` <button onclick="deleteProject(${p.id})" class="text-red-600 font-bold text-[10px] uppercase ml-2">DEL</button>`;
-
             return `<tr class="${overdue ? 'delayed-alert' : ''} border-b border-gray-100 hover:bg-gray-50 transition">
                 <td class="p-4 font-bold text-black">${p.name}</td>
                 <td class="p-4 text-[10px] font-bold text-black uppercase">${p.team_name}</td>
@@ -481,6 +465,24 @@
         doc.setFontSize(18); doc.setFont("helvetica", "bold"); doc.text("AMD STATUS REPORT", 14, 20);
         doc.autoTable({ startY: 30, head: [['Project', 'Team', 'Status', 'Progress']], body: allProjects.map(p => [p.name, p.team_name, p.status, p.progress + "%"]), headStyles: { fillColor: [237, 28, 36] } });
         doc.save("AMD_Report.pdf");
+    }
+
+    // NEW EXCEL EXPORT FUNCTION
+    function exportToExcel() {
+        const dataToExport = allProjects.map(p => ({
+            'Project Name': p.name,
+            'Primary Team': p.team_name,
+            'Additional Teams': p.secondary_team || '-',
+            'Status': p.status,
+            'Progress (%)': p.progress + '%',
+            'Start Date': p.start_date.split('T')[0],
+            'End Date': p.end_date.split('T')[0],
+            'Remarks': p.remarks || '-'
+        }));
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Projects");
+        XLSX.writeFile(workbook, "AMD_Project_Full_Report.xlsx");
     }
 
     async function init() {
