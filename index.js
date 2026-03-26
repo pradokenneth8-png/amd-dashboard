@@ -20,9 +20,12 @@ app.post('/login', async (req, res) => {
     const { username, password } = req.body;
     const result = await pool.query('SELECT * FROM users WHERE username = $1 AND password = $2', [username, password]);
     if (result.rows.length > 0) {
-      // NEW: Grab the role from the database. Default to editor just in case SQL hasn't run yet.
-      const userRole = result.rows[0].role || 'editor';
-      res.json({ success: true, username: result.rows[0].username, role: userRole });
+      const user = result.rows[0];
+      res.json({ 
+        success: true, 
+        username: user.username, 
+        role: user.role || 'viewer'
+      });
     } else {
       res.status(401).json({ success: false, message: "Invalid username or password" });
     }
@@ -35,7 +38,6 @@ app.post('/register', async (req, res) => {
     const check = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
     if (check.rows.length > 0) return res.status(400).json({ success: false, message: "Username taken" });
     
-    // New users will automatically be given the 'viewer' role by the database default
     await pool.query('INSERT INTO users (username, password) VALUES ($1, $2)', [username, password]);
     res.json({ success: true });
   } catch (err) { res.status(500).send(err.message); }
@@ -51,14 +53,26 @@ app.get('/teams', async (req, res) => {
 
 app.get('/projects', async (req, res) => {
   try {
-    const { team_id, status } = req.query;
+    const { team_id, status, showArchived } = req.query;
     let query = 'SELECT p.*, t.name as team_name FROM projects p JOIN teams t ON p.team_id = t.id';
     let params = [];
     let conditions = [];
-    if (team_id && team_id !== "all") { params.push(team_id); conditions.push(`p.team_id = $${params.length}`); }
-    if (status && status !== "all") { params.push(status); conditions.push(`p.status = $${params.length}`); }
+
+    const isArchived = showArchived === 'true';
+    conditions.push(`p.archived = ${isArchived ? 'TRUE' : 'FALSE'}`);
+
+    if (team_id && team_id !== "all") { 
+        params.push(team_id); 
+        conditions.push(`p.team_id = $${params.length}`); 
+    }
+    if (status && status !== "all") { 
+        params.push(status); 
+        conditions.push(`p.status = $${params.length}`); 
+    }
+
     if (conditions.length > 0) query += ' WHERE ' + conditions.join(' AND ');
     query += ' ORDER BY p.id DESC';
+
     const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err) { res.status(500).send(err.message); }
@@ -84,6 +98,17 @@ app.delete('/logs', async (req, res) => {
 });
 
 // --- PROJECT MUTATIONS ---
+
+app.patch('/projects/:id/progress', async (req, res) => {
+  try {
+    const { progress, user } = req.body;
+    await pool.query('UPDATE projects SET progress = $1 WHERE id = $2', [progress, req.params.id]);
+    await pool.query('INSERT INTO audit_logs (project_id, action, changed_by) VALUES ($1, $2, $3)', 
+      [req.params.id, `Quick-update: Progress to ${progress}%`, user || 'Anonymous']);
+    res.json({ success: true });
+  } catch (err) { res.status(500).send(err.message); }
+});
+
 app.post('/projects', async (req, res) => {
   try {
     const { name, team_id, secondary_team, status, start_date, end_date, progress, remarks, user } = req.body;
@@ -105,9 +130,19 @@ app.put('/projects/:id', async (req, res) => {
       [name, progress, status, secondary_team, remarks, start_date, end_date, req.params.id]
     );
     await pool.query('INSERT INTO audit_logs (project_id, action, changed_by) VALUES ($1, $2, $3)', 
-      [req.params.id, `Updated details & progress to ${progress}%`, user || 'Anonymous']);
+      [req.params.id, `Updated details to ${status} (${progress}%)`, user || 'Anonymous']);
     res.json({ message: "Updated" });
   } catch (err) { res.status(500).send(err.message); }
+});
+
+app.put('/projects/:id/archive', async (req, res) => {
+    try {
+        const { user } = req.body;
+        await pool.query('UPDATE projects SET archived = TRUE WHERE id = $1', [req.params.id]);
+        await pool.query('INSERT INTO audit_logs (project_id, action, changed_by) VALUES ($1, $2, $3)', 
+            [req.params.id, `Project moved to Archive`, user || 'Anonymous']);
+        res.json({ message: "Project Archived" });
+    } catch (err) { res.status(500).send(err.message); }
 });
 
 app.delete('/projects/:id', async (req, res) => {
