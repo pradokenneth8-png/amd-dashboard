@@ -16,10 +16,7 @@
     
     <style>
         :root { --amd-red: #ED1C24; }
-        
-        /* ADDED: Global Font Override */
         body { font-family: 'Montserrat', sans-serif !important; }
-        
         .bg-amd { background-color: var(--amd-red); }
         #main-app { display: none; }
         @keyframes pulse-red { 0%, 100% { background-color: #fff; } 50% { background-color: #fee2e2; } }
@@ -85,6 +82,25 @@
     </header>
 
     <main class="container mx-auto p-4 space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-blue-600">
+                <p class="text-[10px] font-bold text-gray-500 uppercase">Total Projects</p>
+                <h3 id="kpi-total" class="text-2xl font-black text-black">0</h3>
+            </div>
+            <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-green-500">
+                <p class="text-[10px] font-bold text-gray-500 uppercase">On-Time Rate</p>
+                <h3 id="kpi-ontime" class="text-2xl font-black text-black">0%</h3>
+            </div>
+            <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-red-500">
+                <p class="text-[10px] font-bold text-gray-500 uppercase">Active Delays</p>
+                <h3 id="kpi-delays" class="text-2xl font-black text-black">0</h3>
+            </div>
+            <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-yellow-500">
+                <p class="text-[10px] font-bold text-gray-500 uppercase">Avg. Progress</p>
+                <h3 id="kpi-progress" class="text-2xl font-black text-black">0%</h3>
+            </div>
+        </div>
+
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div class="max-h-[400px] overflow-auto">
                 <table class="w-full text-left text-sm">
@@ -197,7 +213,7 @@
 
 <script>
     let statusChartInstance, heatmapChartInstance, allProjects = [], allTeamsList = [], currentPage = 1, currentUser = null, isLoginMode = true;
-    let currentUserRole = 'viewer'; // NEW: Variable to hold role
+    let currentUserRole = 'viewer';
     let captchaNum1, captchaNum2;
 
     function generateCaptcha() {
@@ -225,25 +241,18 @@
         
         if (res.ok) {
             if (!isLoginMode) { 
-                alert("Account Ready! Pending Admin approval for full access."); 
+                alert("Account Ready! Pending Admin approval."); 
                 toggleAuthMode(); 
             } else { 
                 currentUser = data.username; 
-                currentUserRole = data.role || 'editor'; // Capture their role from backend
-
+                currentUserRole = data.role || 'viewer';
                 document.getElementById('login-page').style.display='none'; 
                 document.getElementById('main-app').style.display='block'; 
-                
-                // --- ROLE BASED UI LOGIC ---
-                if(currentUserRole === 'admin') {
-                    document.getElementById('admin-clear-btn').classList.remove('hidden');
-                }
+                if(currentUserRole === 'admin') document.getElementById('admin-clear-btn').classList.remove('hidden');
                 if(currentUserRole === 'viewer') {
-                    // Hide the +NEW button in the header if they are just a viewer
                     const newBtn = document.querySelector('button[onclick="openModal()"]');
                     if(newBtn) newBtn.style.display = 'none';
                 }
-                
                 init(); 
             }
         } else { alert(data.message); generateCaptcha(); }
@@ -256,7 +265,25 @@
         const status = document.getElementById('statusFilter').value;
         const res = await fetch(`/projects?team_id=${team}&status=${status}`);
         allProjects = await res.json();
+        
+        // NEW: Update KPIs on every load/filter
+        updateKPIs(allProjects);
+        
         renderTable(); updateChart(); renderHeatmap(); renderGantt();
+    }
+
+    // NEW: KPI Calculation Logic
+    function updateKPIs(projects) {
+        const total = projects.length;
+        const onTrack = projects.filter(p => p.status === 'On Track' || p.status === 'Completed').length;
+        const delayed = projects.filter(p => p.status === 'Delayed').length;
+        const avgProg = total > 0 ? Math.round(projects.reduce((s, p) => s + parseInt(p.progress), 0) / total) : 0;
+        const delRate = total > 0 ? Math.round((onTrack / total) * 100) : 0;
+
+        document.getElementById('kpi-total').innerText = total;
+        document.getElementById('kpi-ontime').innerText = `${delRate}%`;
+        document.getElementById('kpi-delays').innerText = delayed;
+        document.getElementById('kpi-progress').innerText = `${avgProg}%`;
     }
 
     function renderTable() {
@@ -283,15 +310,9 @@
             const overdue = new Date(p.end_date) < today && p.status !== 'Completed';
             const barColor = p.status === 'Completed' ? 'bg-green-500' : (p.status === 'Delayed' ? 'bg-red-500' : 'bg-blue-500');
             
-            // --- NEW: DYNAMIC ACTION BUTTONS BASED ON ROLE ---
-            let actionButtons = `<button onclick="showDates('${p.name}', '${p.start_date}', '${p.end_date}')" class="bg-gray-200 px-2 py-1 rounded font-bold text-[9px] text-black hover:bg-gray-300 transition">📅 DATES</button>`;
-            
-            if (currentUserRole === 'admin' || currentUserRole === 'editor') {
-                actionButtons += ` <button onclick="editProject(${p.id})" class="text-blue-600 font-bold text-[10px] hover:underline uppercase ml-2">EDIT</button>`;
-            }
-            if (currentUserRole === 'admin') {
-                actionButtons += ` <button onclick="deleteProject(${p.id})" class="text-red-600 font-bold text-[10px] hover:underline uppercase ml-2">DEL</button>`;
-            }
+            let actionButtons = `<button onclick="showDates('${p.name}', '${p.start_date}', '${p.end_date}')" class="bg-gray-200 px-2 py-1 rounded font-bold text-[9px] text-black">📅 DATES</button>`;
+            if (currentUserRole === 'admin' || currentUserRole === 'editor') actionButtons += ` <button onclick="editProject(${p.id})" class="text-blue-600 font-bold text-[10px] uppercase ml-2">EDIT</button>`;
+            if (currentUserRole === 'admin') actionButtons += ` <button onclick="deleteProject(${p.id})" class="text-red-600 font-bold text-[10px] uppercase ml-2">DEL</button>`;
 
             return `<tr class="${overdue ? 'delayed-alert' : ''} border-b border-gray-100 hover:bg-gray-50 transition">
                 <td class="p-4 font-bold text-black">${p.name}</td>
@@ -300,9 +321,7 @@
                 <td class="p-4"><span class="px-2 py-1 rounded text-[9px] font-black uppercase ${p.status === 'On Track' ? 'bg-blue-50 text-blue-600' : p.status === 'Delayed' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}">${p.status}</span></td>
                 <td class="p-4"><div class="flex items-center gap-2"><div class="flex-grow bg-gray-200 rounded-full h-1.5 overflow-hidden"><div class="${barColor} h-full" style="width: ${p.progress}%"></div></div><span class="text-[10px] font-bold text-black">${p.progress}%</span></div></td>
                 <td class="p-4 text-[10px] text-black truncate max-w-[100px]">${p.remarks || '-'}</td>
-                <td class="p-4 text-center space-x-2">
-                    ${actionButtons}
-                </td>
+                <td class="p-4 text-center">${actionButtons}</td>
             </tr>`;
         }).join('');
         document.getElementById('pageInfo').innerText = `Page ${currentPage}`;
@@ -326,15 +345,12 @@
         const teamData = {};
         allTeamsList.forEach(t => teamData[t.name] = { 'On Track': 0, 'Delayed': 0, 'Completed': 0 });
         allProjects.forEach(p => { if(teamData[p.team_name]) teamData[p.team_name][p.status]++; });
-
         const labels = Object.keys(teamData);
         const onTrack = labels.map(l => teamData[l]['On Track']);
         const delayed = labels.map(l => teamData[l]['Delayed']);
         const completed = labels.map(l => teamData[l]['Completed']);
-
         const ctx = document.getElementById('heatmapChart').getContext('2d');
         if (heatmapChartInstance) heatmapChartInstance.destroy();
-        
         heatmapChartInstance = new Chart(ctx, {
             type: 'bar',
             data: { labels: labels, datasets: [
@@ -347,14 +363,7 @@
                 layout: { padding: { right: 50 } },
                 scales: { 
                     x: { stacked: true, display: false }, 
-                    y: { 
-                        stacked: true, 
-                        ticks: { 
-                            font: { size: 15, weight: 'bold', family: 'Montserrat' }, 
-                            color: '#000', 
-                            autoSkip: false 
-                        } 
-                    } 
+                    y: { stacked: true, ticks: { font: { size: 15, weight: 'bold', family: 'Montserrat' }, color: '#000', autoSkip: false } } 
                 },
                 plugins: { 
                     legend: { display: true, position: 'top', labels: { boxWidth: 10, font:{size:10, family: 'Montserrat'}, color: '#000' } },
