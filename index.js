@@ -2,7 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
 const path = require('path');
-const nodemailer = require('nodemailer'); 
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -15,21 +14,6 @@ const pool = new Pool({
   connectionString: 'postgresql://neondb_owner:npg_Szu1CKI8pqYN@ep-delicate-dawn-a1thm5ic-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require',
 });
 
-// --- UPDATED: Microsoft Office 365 / Outlook Transporter ---
-const transporter = nodemailer.createTransport({
-  host: "smtp.office365.com",
-  port: 587,
-  secure: false, // Must be false for port 587
-  auth: {
-    user: process.env.EMAIL_USER, 
-    pass: process.env.EMAIL_PASS  
-  },
-  tls: {
-    ciphers: 'SSLv3',
-    rejectUnauthorized: false // Prevents connection drops in corporate networks
-  }
-});
-
 // --- AUTHENTICATION ---
 app.post('/login', async (req, res) => {
   try {
@@ -40,8 +24,7 @@ app.post('/login', async (req, res) => {
       res.json({ 
         success: true, 
         username: user.username, 
-        role: user.role || 'viewer',
-        email: user.email 
+        role: user.role || 'viewer'
       });
     } else {
       res.status(401).json({ success: false, message: "Invalid username or password" });
@@ -51,32 +34,13 @@ app.post('/login', async (req, res) => {
 
 app.post('/register', async (req, res) => {
   try {
-    const { username, password, email } = req.body;
+    const { username, password } = req.body;
     const check = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
     if (check.rows.length > 0) return res.status(400).json({ success: false, message: "Username taken" });
     
-    await pool.query('INSERT INTO users (username, password, email) VALUES ($1, $2, $3)', [username, password, email]);
+    await pool.query('INSERT INTO users (username, password) VALUES ($1, $2)', [username, password]);
     res.json({ success: true });
   } catch (err) { res.status(500).send(err.message); }
-});
-
-// --- EMAIL TESTING ROUTE ---
-app.post('/test-email', async (req, res) => {
-    try {
-        const { adminEmail } = req.body;
-        
-        const mailOptions = {
-            from: process.env.EMAIL_USER,
-            to: adminEmail,
-            subject: '🚀 AMD Dashboard - Microsoft 365 Test',
-            text: `Connection Successful! Your AMD Dashboard is now authorized via Microsoft Office 365. \n\nTimestamp: ${new Date().toLocaleString()}`
-        };
-
-        await transporter.sendMail(mailOptions);
-        res.json({ success: true, message: "Test email sent!" });
-    } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
-    }
 });
 
 // --- CORE DATA ---
