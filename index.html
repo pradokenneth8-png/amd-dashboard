@@ -50,38 +50,50 @@
 
 <div id="main-app">
     <header class="bg-black text-white p-4 shadow-xl border-b-4 border-amd sticky top-0 z-50">
-        <div class="container mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-            <h1 class="text-xl font-black italic tracking-tighter uppercase">Asset Management Department</h1>
-            <div class="flex flex-wrap gap-2 items-center">
-                <select id="timeFilter" onchange="renderTable()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold text-yellow-400">
-                    <option value="all">ALL DATES</option>
-                    <option value="overdue">⚠️ OVERDUE</option>
-                    <option value="week">DUE NEXT 7 DAYS</option>
-                    <option value="month">DUE THIS MONTH</option>
-                </select>
+        <div class="container mx-auto flex flex-col xl:flex-row justify-between items-center gap-4">
+            
+            <div class="flex-shrink-0">
+                <h1 class="text-xl font-black italic tracking-tighter uppercase text-center xl:text-left">
+                    Asset Management Department
+                </h1>
+            </div>
 
-                <select id="statusFilter" onchange="loadData()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold">
-                    <option value="all">ALL STATUS</option>
-                    <option value="On Track">ON TRACK</option>
-                    <option value="Delayed">DELAYED</option>
-                    <option value="Completed">COMPLETED</option>
-                </select>
-                <select id="teamFilter" onchange="loadData()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold">
-                    <option value="all">ALL TEAMS</option>
-                </select>
-                <select id="sortOrder" onchange="renderTable()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold">
-                    <option value="asc">SORT A-Z</option>
-                    <option value="desc">SORT Z-A</option>
-                </select>
+            <div class="flex flex-col lg:flex-row gap-4 w-full xl:w-auto xl:justify-end items-center">
                 
-                <button onclick="showHistory()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded-full font-bold text-[10px] transition">📜 LOGS</button>
-                <button onclick="exportToPDF()" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-full font-bold text-[10px]">📊 PDF</button>
-                <button onclick="exportToExcel()" class="bg-green-700 hover:bg-green-600 text-white px-3 py-1 rounded-full font-bold text-[10px]">📊 EXCEL</button>
-                
-                <button id="view-archive-btn" onclick="toggleArchiveView()" class="bg-gray-800 border border-gray-600 text-gray-300 px-3 py-1 rounded-full font-bold text-[10px] hover:text-white transition">📂 VIEW ARCHIVE</button>
+                <div class="flex flex-wrap justify-center gap-2 border-b lg:border-b-0 lg:border-r border-gray-700 pb-3 lg:pb-0 lg:pr-4">
+                    <select id="timeFilter" onchange="renderTable()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold text-yellow-400">
+                        <option value="all">ALL DATES</option>
+                        <option value="overdue">⚠️ OVERDUE</option>
+                        <option value="week">DUE NEXT 7 DAYS</option>
+                        <option value="month">DUE THIS MONTH</option>
+                    </select>
 
-                <button id="header-new-btn" onclick="openModal()" class="bg-amd hover:bg-red-700 text-white px-3 py-1 rounded-full font-bold text-[10px]">+ NEW</button>
-                <button onclick="location.reload()" class="text-gray-400 hover:text-white text-[10px] font-bold uppercase ml-2">Logout</button>
+                    <select id="statusFilter" onchange="loadData()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold">
+                        <option value="all">ALL STATUS</option>
+                        <option value="On Track">ON TRACK</option>
+                        <option value="Delayed">DELAYED</option>
+                        <option value="Completed">COMPLETED</option>
+                    </select>
+                    
+                    <select id="teamFilter" onchange="loadData()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold">
+                        <option value="all">ALL TEAMS</option>
+                    </select>
+                    
+                    <select id="sortOrder" onchange="renderTable()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold">
+                        <option value="asc">SORT A-Z</option>
+                        <option value="desc">SORT Z-A</option>
+                    </select>
+                </div>
+
+                <div class="flex flex-wrap justify-center gap-2 items-center">
+                    <button onclick="showHistory()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded-full font-bold text-[10px] transition">📜 LOGS</button>
+                    <button onclick="exportToPDF()" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-full font-bold text-[10px]">📊 PDF</button>
+                    <button onclick="exportToExcel()" class="bg-green-700 hover:bg-green-600 text-white px-3 py-1 rounded-full font-bold text-[10px]">📊 EXCEL</button>
+                    <button id="view-archive-btn" onclick="toggleArchiveView()" class="bg-gray-800 border border-gray-600 text-gray-300 px-3 py-1 rounded-full font-bold text-[10px] hover:text-white transition">📂 VIEW ARCHIVE</button>
+                    <button id="header-new-btn" onclick="openModal()" class="bg-amd hover:bg-red-700 text-white px-3 py-1 rounded-full font-bold text-[10px]">+ NEW</button>
+                    <button onclick="location.reload()" class="text-gray-400 hover:text-white text-[10px] font-bold uppercase ml-2">Logout</button>
+                </div>
+
             </div>
         </div>
     </header>
