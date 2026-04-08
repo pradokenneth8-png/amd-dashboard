@@ -143,4 +143,4 @@ app.delete('/projects/:id', async (req, res) => {
   } catch (err) { res.status(500).send(err.message); }
 });
 
-app.listen(port, () => console.log(`AMD Enterprise Server running on ${port}`));
+app.listen(port, '0.0.0.0', () => console.log(`AMD Enterprise Server running on ${port}`));
