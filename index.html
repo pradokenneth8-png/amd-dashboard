@@ -280,7 +280,7 @@
 
 <script>
     let statusChartInstance, heatmapChartInstance, allProjects = [], allTeamsList = [], currentPage = 1, currentUser = null, isLoginMode = true;
-    let currentUserRole = 'editor'; // default
+    let currentUserRole = 'editor'; 
     let isArchiveView = false; 
     let captchaNum1, captchaNum2;
 
@@ -336,25 +336,20 @@
                 toggleAuthMode(); 
             } else { 
                 currentUser = data.username; 
-                // Give 'editor' access automatically if role is missing or set to basic 'member'
                 currentUserRole = data.role || 'editor'; 
                 
                 document.getElementById('login-page').style.display='none'; 
                 document.getElementById('main-app').style.display='block'; 
                 
-                const newBtn = document.getElementById('header-new-btn');
-                
+                // UN-HIDE ADMIN BUTTONS ONLY IF ADMIN
                 if(currentUserRole === 'admin') {
                     document.getElementById('admin-clear-btn').classList.remove('hidden');
                     document.getElementById('admin-users-btn').classList.remove('hidden'); 
                 }
 
-                // Explicitly show/hide the + NEW button based on role
-                if(currentUserRole === 'viewer') {
-                    if(newBtn) newBtn.style.display = 'none';
-                } else {
-                    if(newBtn) newBtn.style.display = 'inline-block';
-                }
+                // FORCE +NEW BUTTON TO SHOW FOR ALL LOGGED-IN USERS
+                const newBtn = document.getElementById('header-new-btn');
+                if(newBtn) newBtn.style.display = 'inline-block';
                 
                 init(); 
             }
@@ -437,24 +432,20 @@
             const overdue = new Date(p.end_date) < today && p.status !== 'Completed';
             const barColor = p.status === 'Completed' ? 'bg-green-500' : (p.status === 'Delayed' ? 'bg-red-500' : 'bg-blue-500');
             
-            // REMARKS CLICKABLE LOGIC
             const remarksHtml = p.remarks 
                 ? `<div class="truncate cursor-pointer text-blue-600 hover:underline font-semibold" onclick="viewRemarks(${p.id})" title="Click to read full remarks">${p.remarks}</div>`
                 : `<span class="text-gray-400">-</span>`;
 
             let actionButtons = `<button onclick="showDates('${p.name}', '${p.start_date}', '${p.end_date}')" class="bg-gray-200 px-2 py-1 rounded font-bold text-[9px] text-black hover:bg-gray-300">📅 DATES</button>`;
             
-            // ALLOW ALL USERS TO EDIT, ARCHIVE, AND DELETE EXCEPT 'VIEWER'
-            if (currentUserRole !== 'viewer') {
-                actionButtons += ` <button onclick="editProject(${p.id})" class="text-blue-600 font-bold text-[10px] uppercase ml-2">EDIT</button>`;
-                
-                if (p.status === 'Completed' && !p.archived && !isArchiveView) {
-                    actionButtons += ` <button onclick="archiveProject(${p.id})" class="text-green-600 font-bold text-[10px] uppercase ml-2">ARCHIVE</button>`;
-                }
-                
-                // DEL button is now available to standard members!
-                actionButtons += ` <button onclick="deleteProject(${p.id})" class="text-red-600 font-bold text-[10px] uppercase ml-2">DEL</button>`;
+            // ALLOW ALL LOGGED-IN USERS TO EDIT, ARCHIVE, AND DELETE
+            actionButtons += ` <button onclick="editProject(${p.id})" class="text-blue-600 font-bold text-[10px] uppercase ml-2">EDIT</button>`;
+            
+            if (p.status === 'Completed' && !p.archived && !isArchiveView) {
+                actionButtons += ` <button onclick="archiveProject(${p.id})" class="text-green-600 font-bold text-[10px] uppercase ml-2">ARCHIVE</button>`;
             }
+            
+            actionButtons += ` <button onclick="deleteProject(${p.id})" class="text-red-600 font-bold text-[10px] uppercase ml-2">DEL</button>`;
 
             return `<tr class="${overdue ? 'delayed-alert' : ''} border-b border-gray-100 hover:bg-gray-50 transition">
                 <td class="p-4 font-bold text-black">${p.name}</td>
@@ -471,7 +462,6 @@
         document.getElementById('prevBtn').disabled = currentPage === 1;
     }
 
-    // --- NEW: VIEW FULL REMARKS FUNCTION ---
     function viewRemarks(id) {
         const p = allProjects.find(x => x.id === id);
         if (!p || !p.remarks) return;
