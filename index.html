@@ -336,21 +336,26 @@
                 toggleAuthMode(); 
             } else { 
                 currentUser = data.username; 
-                // UPDATE: Give 'editor' access automatically if role is missing or set to basic 'member'
+                // Give 'editor' access automatically if role is missing or set to basic 'member'
                 currentUserRole = data.role || 'editor'; 
                 
                 document.getElementById('login-page').style.display='none'; 
                 document.getElementById('main-app').style.display='block'; 
+                
+                const newBtn = document.getElementById('header-new-btn');
                 
                 if(currentUserRole === 'admin') {
                     document.getElementById('admin-clear-btn').classList.remove('hidden');
                     document.getElementById('admin-users-btn').classList.remove('hidden'); 
                 }
 
+                // Explicitly show/hide the + NEW button based on role
                 if(currentUserRole === 'viewer') {
-                    const newBtn = document.getElementById('header-new-btn');
                     if(newBtn) newBtn.style.display = 'none';
+                } else {
+                    if(newBtn) newBtn.style.display = 'inline-block';
                 }
+                
                 init(); 
             }
         } else { alert(data.message); generateCaptcha(); }
@@ -439,15 +444,15 @@
 
             let actionButtons = `<button onclick="showDates('${p.name}', '${p.start_date}', '${p.end_date}')" class="bg-gray-200 px-2 py-1 rounded font-bold text-[9px] text-black hover:bg-gray-300">📅 DATES</button>`;
             
-            // ALLOW ALL USERS TO EDIT EXCEPT 'VIEWER'
+            // ALLOW ALL USERS TO EDIT, ARCHIVE, AND DELETE EXCEPT 'VIEWER'
             if (currentUserRole !== 'viewer') {
                 actionButtons += ` <button onclick="editProject(${p.id})" class="text-blue-600 font-bold text-[10px] uppercase ml-2">EDIT</button>`;
                 
                 if (p.status === 'Completed' && !p.archived && !isArchiveView) {
                     actionButtons += ` <button onclick="archiveProject(${p.id})" class="text-green-600 font-bold text-[10px] uppercase ml-2">ARCHIVE</button>`;
                 }
-            }
-            if (currentUserRole === 'admin') {
+                
+                // DEL button is now available to standard members!
                 actionButtons += ` <button onclick="deleteProject(${p.id})" class="text-red-600 font-bold text-[10px] uppercase ml-2">DEL</button>`;
             }
 
@@ -592,7 +597,13 @@
 
     async function clearHistory() { if(confirm("Clear All?")) { await fetch('/logs', { method: 'DELETE' }); showHistory(); } }
     function closeHistory() { document.getElementById('history-modal').classList.add('hidden'); }
-    async function deleteProject(id) { if (confirm("Delete?")) { await fetch(`/projects/${id}`, { method: 'DELETE' }); loadData(); } }
+    
+    async function deleteProject(id) { 
+        if (confirm("Are you sure you want to completely delete this project?")) { 
+            await fetch(`/projects/${id}`, { method: 'DELETE' }); 
+            loadData(); 
+        } 
+    }
 
     function renderGantt() {
         const container = document.getElementById('gantt'); container.innerHTML = "";
