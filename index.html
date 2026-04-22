@@ -98,7 +98,8 @@
                     <button onclick="exportToExcel()" class="bg-green-700 hover:bg-green-600 text-white px-3 py-1 rounded-full font-bold text-[10px]">📊 EXCEL</button>
                     <button id="view-archive-btn" onclick="toggleArchiveView()" class="bg-gray-800 border border-gray-600 text-gray-300 px-3 py-1 rounded-full font-bold text-[10px] hover:text-white transition">📂 VIEW ARCHIVE</button>
                     <button id="header-new-btn" onclick="openModal()" class="bg-amd hover:bg-red-700 text-white px-3 py-1 rounded-full font-bold text-[10px]">+ NEW</button>
-                    <button onclick="location.reload()" class="text-gray-400 hover:text-white text-[10px] font-bold uppercase ml-2">Logout</button>
+                    
+                    <button onclick="handleLogout()" class="text-gray-400 hover:text-white text-[10px] font-bold uppercase ml-2">Logout</button>
                 </div>
 
             </div>
@@ -342,19 +343,31 @@
                 document.getElementById('login-page').style.display='none'; 
                 document.getElementById('main-app').style.display='block'; 
                 
-                // UN-HIDE ADMIN BUTTONS ONLY IF ADMIN
                 if(currentUserRole === 'admin') {
                     document.getElementById('admin-clear-btn').classList.remove('hidden');
                     document.getElementById('admin-users-btn').classList.remove('hidden'); 
                 }
 
-                // FORCE +NEW BUTTON TO SHOW FOR ALL LOGGED-IN USERS
                 const newBtn = document.getElementById('header-new-btn');
                 if(newBtn) newBtn.style.display = 'inline-block';
                 
                 init(); 
             }
         } else { alert(data.message); generateCaptcha(); }
+    }
+
+    // NEW LOGOUT FUNCTION
+    async function handleLogout() {
+        if (currentUser) {
+            try {
+                await fetch('/logout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: currentUser })
+                });
+            } catch (e) { console.error("Logout log failed", e); }
+        }
+        location.reload();
     }
 
     generateCaptcha();
@@ -437,10 +450,8 @@
                 ? `<div class="truncate cursor-pointer text-blue-600 hover:underline font-semibold" onclick="viewRemarks(${p.id})" title="Click to read full remarks">${p.remarks}</div>`
                 : `<span class="text-gray-400">-</span>`;
 
-            // SEPARATE DATES BUTTON
             const dateButton = `<button onclick="showDates('${p.name}', '${p.start_date}', '${p.end_date}')" class="bg-gray-200 px-2 py-1 rounded font-bold text-[9px] text-black hover:bg-gray-300">📅 DATES</button>`;
 
-            // ACTION BUTTONS (EDIT, ARCHIVE, DEL)
             let actionButtons = `<button onclick="editProject(${p.id})" class="text-blue-600 font-bold text-[10px] uppercase">EDIT</button>`;
             
             if (p.status === 'Completed' && !p.archived && !isArchiveView) {
@@ -449,7 +460,6 @@
             
             actionButtons += ` <button onclick="deleteProject(${p.id})" class="text-red-600 font-bold text-[10px] uppercase ml-2">DEL</button>`;
 
-            // UPDATED ROW: Added new <td> for dateButton before actionButtons
             return `<tr class="${overdue ? 'delayed-alert' : ''} border-b border-gray-100 hover:bg-gray-50 transition">
                 <td class="p-4 font-bold text-black">${p.name}</td>
                 <td class="p-4 text-[10px] font-bold text-black uppercase">${p.team_name}</td>
@@ -583,9 +593,18 @@
         closeModal(); loadData();
     });
 
+    // UPDATED LOGS FUNCTION TO HANDLE LOGIN/LOGOUT
     async function showHistory() {
         const res = await fetch('/logs'); const logs = await res.json();
-        document.getElementById('history-rows').innerHTML = logs.map(l => `<tr class="border-b border-gray-200"><td class="p-2 font-bold text-black">${l.project_name || 'Deleted'}</td><td class="p-2 text-black text-[10px]">${l.action}</td><td class="p-2 font-bold text-blue-600">${l.changed_by}</td><td class="p-2 text-black text-[10px] font-bold">${new Date(l.timestamp).toLocaleString()}</td></tr>`).join('');
+        document.getElementById('history-rows').innerHTML = logs.map(l => {
+            const targetName = l.project_id ? (l.project_name || 'Deleted Project') : 'System Activity';
+            return `<tr class="border-b border-gray-200">
+                <td class="p-2 font-bold text-black">${targetName}</td>
+                <td class="p-2 text-black text-[10px]">${l.action}</td>
+                <td class="p-2 font-bold text-blue-600">${l.changed_by}</td>
+                <td class="p-2 text-black text-[10px] font-bold">${new Date(l.timestamp).toLocaleString()}</td>
+            </tr>`;
+        }).join('');
         document.getElementById('history-modal').classList.remove('hidden');
     }
 

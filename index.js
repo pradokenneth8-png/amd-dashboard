@@ -32,6 +32,10 @@ app.post('/login', async (req, res) => {
     const result = await pool.query('SELECT * FROM users WHERE username = $1 AND password = $2', [username, password]);
     if (result.rows.length > 0) {
       const userRole = result.rows[0].role || 'editor';
+      
+      // NEW: Log the login action in the database
+      await pool.query('INSERT INTO audit_logs (project_id, action, changed_by) VALUES ($1, $2, $3)', [null, 'User Logged In', username]);
+
       res.json({ success: true, username: result.rows[0].username, role: userRole });
     } else {
       res.status(401).json({ success: false, message: "Invalid username or password" });
@@ -82,10 +86,20 @@ app.post('/register', async (req, res) => {
   } catch (err) { res.status(500).send(err.message); }
 });
 
+// NEW: Handle Logout Logging
+app.post('/logout', async (req, res) => {
+    try {
+        const { username } = req.body;
+        if (username) {
+            await pool.query('INSERT INTO audit_logs (project_id, action, changed_by) VALUES ($1, $2, $3)', [null, 'User Logged Out', username]);
+        }
+        res.json({ success: true });
+    } catch (err) { res.status(500).send(err.message); }
+});
+
 // --- ADMIN: MANAGE USERS ---
 app.get('/users', async (req, res) => {
   try {
-    // Fetches all users so the admin can see them
     const result = await pool.query('SELECT id, username, email, role FROM users ORDER BY username ASC');
     res.json(result.rows);
   } catch (err) { res.status(500).send(err.message); }
@@ -94,7 +108,6 @@ app.get('/users', async (req, res) => {
 app.delete('/users/:id', async (req, res) => {
   try {
     const userId = req.params.id;
-    // Deletes the specific user from the database
     await pool.query('DELETE FROM users WHERE id = $1', [userId]);
     res.json({ message: "User deleted successfully" });
   } catch (err) { res.status(500).send(err.message); }
@@ -116,7 +129,7 @@ app.get('/projects', async (req, res) => {
     let params = [];
     let conditions = [];
 
-    // Filter by archived status (Defaults to showing active projects)
+    // Filter by archived status
     const isArchived = showArchived === 'true';
     conditions.push(`p.archived = ${isArchived ? 'TRUE' : 'FALSE'}`);
 
@@ -180,7 +193,7 @@ app.put('/projects/:id', async (req, res) => {
     await pool.query('INSERT INTO audit_logs (project_id, action, changed_by) VALUES ($1, $2, $3)', 
       [req.params.id, `Updated details & progress to ${progress}%`, user || 'Anonymous']);
 
-    // --- GET USERS IN THIS PROJECT'S TEAM AND SEND UPDATE EMAIL ---
+    // Send update email
     if (team_id) {
         const teamUsers = await pool.query('SELECT email FROM users WHERE team_id = $1 AND email IS NOT NULL', [team_id]);
         const emailList = teamUsers.rows.map(u => u.email).join(',');
@@ -215,14 +228,13 @@ app.delete('/projects/:id', async (req, res) => {
   try {
     const projectId = req.params.id;
     await pool.query('INSERT INTO audit_logs (project_id, action, changed_by) VALUES ($1, $2, $3)', 
-      [projectId, `Deleted project ID: ${projectId}`, 'System']);
+      [null, `Deleted project ID: ${projectId}`, 'System']);
     await pool.query('DELETE FROM projects WHERE id = $1', [projectId]);
     res.json({ message: "Deleted" });
   } catch (err) { res.status(500).send(err.message); }
 });
 
 // --- AUTOMATED NOTIFICATIONS (CRON JOB) ---
-// Runs every morning at 8:00 AM server time
 cron.schedule('0 8 * * *', async () => {
     console.log("Running Daily Project Status Check...");
     try {
