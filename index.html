@@ -135,7 +135,7 @@
                             <th class="p-4">Addl. Teams</th>
                             <th class="p-4">Status</th>
                             <th class="p-4 w-32">Progress</th>
-                            <th class="p-4">Remarks</th>
+                            <th class="p-4 w-48">Remarks</th>
                             <th class="p-4 text-center">Actions</th>
                         </tr>
                     </thead>
@@ -174,6 +174,14 @@
             <div id="gantt"></div>
         </div>
     </main>
+
+    <div id="remarks-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-[70]">
+        <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <h2 id="remarks-modal-title" class="text-lg font-bold mb-4 text-black border-b pb-2"></h2>
+            <div id="remarks-modal-content" class="text-sm text-black whitespace-pre-wrap max-h-60 overflow-y-auto mb-4 p-2 bg-gray-50 rounded border"></div>
+            <button onclick="closeRemarks()" class="w-full bg-gray-200 hover:bg-gray-300 text-black py-2 rounded-lg font-bold text-xs uppercase transition">Close</button>
+        </div>
+    </div>
 
     <div id="modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
         <div class="bg-white rounded-2xl p-8 max-w-md w-full max-h-[90vh] overflow-y-auto">
@@ -272,8 +280,8 @@
 
 <script>
     let statusChartInstance, heatmapChartInstance, allProjects = [], allTeamsList = [], currentPage = 1, currentUser = null, isLoginMode = true;
-    let currentUserRole = 'viewer';
-    let isArchiveView = false; // TRACKING ARCHIVE STATE
+    let currentUserRole = 'editor'; // default
+    let isArchiveView = false; 
     let captchaNum1, captchaNum2;
 
     function generateCaptcha() {
@@ -283,7 +291,6 @@
         document.getElementById('captcha-answer').value = '';
     }
 
-    // PRELOAD TEAMS FOR REGISTRATION DROPDOWN
     async function preLoadTeams() {
         try {
             const res = await fetch('/teams');
@@ -299,7 +306,6 @@
         document.getElementById('auth-btn').innerText = isLoginMode ? "Unlock Dashboard" : "Create Account";
         document.getElementById('auth-toggle-btn').innerText = isLoginMode ? "Create Account" : "Back to Login";
         
-        // Toggle the email and team fields based on mode
         document.getElementById('reg-email').classList.toggle('hidden', isLoginMode);
         document.getElementById('reg-team').classList.toggle('hidden', isLoginMode);
         
@@ -315,7 +321,6 @@
         const email = document.getElementById('reg-email').value;
         const team_id = document.getElementById('reg-team').value;
 
-        // Add email and team_id if registering
         const payload = isLoginMode ? { username, password } : { username, password, email, team_id };
 
         const res = await fetch(isLoginMode ? '/login' : '/register', { 
@@ -331,11 +336,12 @@
                 toggleAuthMode(); 
             } else { 
                 currentUser = data.username; 
-                currentUserRole = data.role || 'viewer';
+                // UPDATE: Give 'editor' access automatically if role is missing or set to basic 'member'
+                currentUserRole = data.role || 'editor'; 
+                
                 document.getElementById('login-page').style.display='none'; 
                 document.getElementById('main-app').style.display='block'; 
                 
-                // UN-HIDE ADMIN BUTTONS
                 if(currentUserRole === 'admin') {
                     document.getElementById('admin-clear-btn').classList.remove('hidden');
                     document.getElementById('admin-users-btn').classList.remove('hidden'); 
@@ -352,7 +358,6 @@
 
     generateCaptcha();
 
-    // UPDATED: Fetches projects based on archive state
     async function loadData() {
         const team = document.getElementById('teamFilter').value;
         const status = document.getElementById('statusFilter').value;
@@ -383,7 +388,6 @@
         dueSoon.setDate(today.getDate() + 2);
         let alerts = [];
         
-        // Only show alerts for active projects
         if (!isArchiveView) {
             projects.forEach(p => {
                 const endDate = new Date(p.end_date);
@@ -428,13 +432,17 @@
             const overdue = new Date(p.end_date) < today && p.status !== 'Completed';
             const barColor = p.status === 'Completed' ? 'bg-green-500' : (p.status === 'Delayed' ? 'bg-red-500' : 'bg-blue-500');
             
-            // ACTION BUTTONS WITH ARCHIVE LOGIC
+            // REMARKS CLICKABLE LOGIC
+            const remarksHtml = p.remarks 
+                ? `<div class="truncate cursor-pointer text-blue-600 hover:underline font-semibold" onclick="viewRemarks(${p.id})" title="Click to read full remarks">${p.remarks}</div>`
+                : `<span class="text-gray-400">-</span>`;
+
             let actionButtons = `<button onclick="showDates('${p.name}', '${p.start_date}', '${p.end_date}')" class="bg-gray-200 px-2 py-1 rounded font-bold text-[9px] text-black hover:bg-gray-300">📅 DATES</button>`;
             
-            if (currentUserRole === 'admin' || currentUserRole === 'editor') {
+            // ALLOW ALL USERS TO EDIT EXCEPT 'VIEWER'
+            if (currentUserRole !== 'viewer') {
                 actionButtons += ` <button onclick="editProject(${p.id})" class="text-blue-600 font-bold text-[10px] uppercase ml-2">EDIT</button>`;
                 
-                // Show ARCHIVE button only for Completed active projects
                 if (p.status === 'Completed' && !p.archived && !isArchiveView) {
                     actionButtons += ` <button onclick="archiveProject(${p.id})" class="text-green-600 font-bold text-[10px] uppercase ml-2">ARCHIVE</button>`;
                 }
@@ -449,13 +457,26 @@
                 <td class="p-4 text-[10px] font-bold text-black uppercase">${p.secondary_team || '-'}</td>
                 <td class="p-4"><span class="px-2 py-1 rounded text-[9px] font-black uppercase ${p.status === 'On Track' ? 'bg-blue-50 text-blue-600' : p.status === 'Delayed' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}">${p.status}</span></td>
                 <td class="p-4"><div class="flex items-center gap-2"><div class="flex-grow bg-gray-200 rounded-full h-1.5 overflow-hidden"><div class="${barColor} h-full" style="width: ${p.progress}%"></div></div><span class="text-[10px] font-bold text-black">${p.progress}%</span></div></td>
-                <td class="p-4 text-[10px] text-black truncate max-w-[100px]">${p.remarks || '-'}</td>
+                <td class="p-4 text-[10px] text-black max-w-[120px]">${remarksHtml}</td>
                 <td class="p-4 text-center">${actionButtons}</td>
             </tr>`;
         }).join('');
         document.getElementById('pageInfo').innerText = `Page ${currentPage}`;
         document.getElementById('nextBtn').disabled = start + 10 >= filtered.length;
         document.getElementById('prevBtn').disabled = currentPage === 1;
+    }
+
+    // --- NEW: VIEW FULL REMARKS FUNCTION ---
+    function viewRemarks(id) {
+        const p = allProjects.find(x => x.id === id);
+        if (!p || !p.remarks) return;
+        document.getElementById('remarks-modal-title').innerText = `Remarks for: ${p.name}`;
+        document.getElementById('remarks-modal-content').innerText = p.remarks;
+        document.getElementById('remarks-modal').classList.remove('hidden');
+    }
+
+    function closeRemarks() {
+        document.getElementById('remarks-modal').classList.add('hidden');
     }
 
     function toggleArchiveView() {
