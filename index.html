@@ -31,6 +31,12 @@
         <h1 id="auth-title" class="text-2xl font-black italic uppercase mb-6 tracking-tighter">AMD Access</h1>
         <div class="space-y-4">
             <input type="text" id="username" placeholder="Username" class="w-full p-3 border rounded-lg bg-gray-50 text-sm text-black">
+            
+            <input type="email" id="reg-email" placeholder="Email Address" class="hidden w-full p-3 border rounded-lg bg-gray-50 text-sm text-black">
+            <select id="reg-team" class="hidden w-full p-3 border rounded-lg bg-gray-50 text-sm text-black">
+                <option value="">Select your Team...</option>
+            </select>
+
             <input type="password" id="password" placeholder="Password" class="w-full p-3 border rounded-lg bg-gray-50 text-sm text-black">
             
             <div class="bg-gray-100 p-3 rounded-lg flex items-center justify-between border border-gray-200">
@@ -250,25 +256,51 @@
         document.getElementById('captcha-answer').value = '';
     }
 
+    // PRELOAD TEAMS FOR REGISTRATION DROPDOWN
+    async function preLoadTeams() {
+        try {
+            const res = await fetch('/teams');
+            const teams = await res.json();
+            document.getElementById('reg-team').innerHTML += teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+        } catch(e) { console.error("Could not load teams for registration", e); }
+    }
+    preLoadTeams();
+
     function toggleAuthMode() {
         isLoginMode = !isLoginMode;
         document.getElementById('auth-title').innerText = isLoginMode ? "AMD Access" : "Join AMD Portal";
         document.getElementById('auth-btn').innerText = isLoginMode ? "Unlock Dashboard" : "Create Account";
         document.getElementById('auth-toggle-btn').innerText = isLoginMode ? "Create Account" : "Back to Login";
+        
+        // Toggle the email and team fields based on mode
+        document.getElementById('reg-email').classList.toggle('hidden', isLoginMode);
+        document.getElementById('reg-team').classList.toggle('hidden', isLoginMode);
+        
         generateCaptcha();
     }
 
     async function handleAuth() {
         const userAnswer = parseInt(document.getElementById('captcha-answer').value);
         if (userAnswer !== (captchaNum1 + captchaNum2)) { alert("Captcha Failed"); generateCaptcha(); return; }
+        
         const username = document.getElementById('username').value;
         const password = document.getElementById('password').value;
-        const res = await fetch(isLoginMode ? '/login' : '/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
+        const email = document.getElementById('reg-email').value;
+        const team_id = document.getElementById('reg-team').value;
+
+        // Add email and team_id if registering
+        const payload = isLoginMode ? { username, password } : { username, password, email, team_id };
+
+        const res = await fetch(isLoginMode ? '/login' : '/register', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify(payload) 
+        });
         const data = await res.json();
         
         if (res.ok) {
             if (!isLoginMode) { 
-                alert("Account Ready! Pending Admin approval."); 
+                alert("Account Created! A welcome email has been sent. Pending Admin approval."); 
                 toggleAuthMode(); 
             } else { 
                 currentUser = data.username; 
