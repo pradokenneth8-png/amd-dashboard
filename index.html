@@ -136,6 +136,7 @@
                             <th class="p-4">Status</th>
                             <th class="p-4 w-32">Progress</th>
                             <th class="p-4 w-48">Remarks</th>
+                            <th class="p-4 text-center">Dates</th>
                             <th class="p-4 text-center">Actions</th>
                         </tr>
                     </thead>
@@ -436,10 +437,11 @@
                 ? `<div class="truncate cursor-pointer text-blue-600 hover:underline font-semibold" onclick="viewRemarks(${p.id})" title="Click to read full remarks">${p.remarks}</div>`
                 : `<span class="text-gray-400">-</span>`;
 
-            let actionButtons = `<button onclick="showDates('${p.name}', '${p.start_date}', '${p.end_date}')" class="bg-gray-200 px-2 py-1 rounded font-bold text-[9px] text-black hover:bg-gray-300">📅 DATES</button>`;
-            
-            // ALLOW ALL LOGGED-IN USERS TO EDIT, ARCHIVE, AND DELETE
-            actionButtons += ` <button onclick="editProject(${p.id})" class="text-blue-600 font-bold text-[10px] uppercase ml-2">EDIT</button>`;
+            // SEPARATE DATES BUTTON
+            const dateButton = `<button onclick="showDates('${p.name}', '${p.start_date}', '${p.end_date}')" class="bg-gray-200 px-2 py-1 rounded font-bold text-[9px] text-black hover:bg-gray-300">📅 DATES</button>`;
+
+            // ACTION BUTTONS (EDIT, ARCHIVE, DEL)
+            let actionButtons = `<button onclick="editProject(${p.id})" class="text-blue-600 font-bold text-[10px] uppercase">EDIT</button>`;
             
             if (p.status === 'Completed' && !p.archived && !isArchiveView) {
                 actionButtons += ` <button onclick="archiveProject(${p.id})" class="text-green-600 font-bold text-[10px] uppercase ml-2">ARCHIVE</button>`;
@@ -447,6 +449,7 @@
             
             actionButtons += ` <button onclick="deleteProject(${p.id})" class="text-red-600 font-bold text-[10px] uppercase ml-2">DEL</button>`;
 
+            // UPDATED ROW: Added new <td> for dateButton before actionButtons
             return `<tr class="${overdue ? 'delayed-alert' : ''} border-b border-gray-100 hover:bg-gray-50 transition">
                 <td class="p-4 font-bold text-black">${p.name}</td>
                 <td class="p-4 text-[10px] font-bold text-black uppercase">${p.team_name}</td>
@@ -454,6 +457,7 @@
                 <td class="p-4"><span class="px-2 py-1 rounded text-[9px] font-black uppercase ${p.status === 'On Track' ? 'bg-blue-50 text-blue-600' : p.status === 'Delayed' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}">${p.status}</span></td>
                 <td class="p-4"><div class="flex items-center gap-2"><div class="flex-grow bg-gray-200 rounded-full h-1.5 overflow-hidden"><div class="${barColor} h-full" style="width: ${p.progress}%"></div></div><span class="text-[10px] font-bold text-black">${p.progress}%</span></div></td>
                 <td class="p-4 text-[10px] text-black max-w-[120px]">${remarksHtml}</td>
+                <td class="p-4 text-center">${dateButton}</td>
                 <td class="p-4 text-center">${actionButtons}</td>
             </tr>`;
         }).join('');
