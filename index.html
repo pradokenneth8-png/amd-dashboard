@@ -92,6 +92,7 @@
                 </div>
 
                 <div class="flex flex-wrap justify-center gap-2 items-center">
+                    <button id="admin-users-btn" onclick="openUsersModal()" class="hidden bg-purple-700 hover:bg-purple-600 text-white px-3 py-1 rounded-full font-bold text-[10px] transition">👥 USERS</button>
                     <button onclick="showHistory()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded-full font-bold text-[10px] transition">📜 LOGS</button>
                     <button onclick="exportToPDF()" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-full font-bold text-[10px]">📊 PDF</button>
                     <button onclick="exportToExcel()" class="bg-green-700 hover:bg-green-600 text-white px-3 py-1 rounded-full font-bold text-[10px]">📊 EXCEL</button>
@@ -241,6 +242,32 @@
             <div class="mt-4 flex justify-between"><button id="admin-clear-btn" onclick="clearHistory()" class="hidden text-red-600 font-bold text-xs uppercase hover:underline">Clear History</button><button onclick="closeHistory()" class="bg-gray-200 hover:bg-gray-300 text-black px-4 py-2 rounded font-bold text-xs uppercase ml-auto transition">Close</button></div>
         </div>
     </div>
+
+    <div id="users-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-[60]">
+        <div class="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] flex flex-col text-sm shadow-2xl">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-black italic uppercase text-black">Manage Users</h2>
+                <button onclick="closeUsersModal()" class="text-black hover:text-red-500 font-bold text-lg">✕</button>
+            </div>
+            <div class="overflow-y-auto flex-grow border rounded-lg">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-gray-50 text-black text-[10px] font-bold uppercase sticky top-0 border-b">
+                        <tr>
+                            <th class="p-3">ID</th>
+                            <th class="p-3">Username</th>
+                            <th class="p-3">Email</th>
+                            <th class="p-3">Role</th>
+                            <th class="p-3 text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="users-rows" class="divide-y divide-gray-100"></tbody>
+                </table>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button onclick="closeUsersModal()" class="bg-gray-200 hover:bg-gray-300 text-black px-4 py-2 rounded font-bold text-xs uppercase transition">Close</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -307,7 +334,13 @@
                 currentUserRole = data.role || 'viewer';
                 document.getElementById('login-page').style.display='none'; 
                 document.getElementById('main-app').style.display='block'; 
-                if(currentUserRole === 'admin') document.getElementById('admin-clear-btn').classList.remove('hidden');
+                
+                // UN-HIDE ADMIN BUTTONS
+                if(currentUserRole === 'admin') {
+                    document.getElementById('admin-clear-btn').classList.remove('hidden');
+                    document.getElementById('admin-users-btn').classList.remove('hidden'); 
+                }
+
                 if(currentUserRole === 'viewer') {
                     const newBtn = document.getElementById('header-new-btn');
                     if(newBtn) newBtn.style.display = 'none';
@@ -584,6 +617,42 @@
     function openModal() { document.getElementById('projectForm').reset(); document.getElementById('edit-id').value = ""; document.querySelectorAll('.add-team-cb').forEach(cb => cb.checked = false); document.getElementById('modal').classList.remove('hidden'); }
     function closeModal() { document.getElementById('modal').classList.add('hidden'); }
     function changePage(dir) { currentPage += dir; renderTable(); }
+
+    // --- ADMIN USER MANAGEMENT FUNCTIONS ---
+    async function openUsersModal() {
+        await loadUsers();
+        document.getElementById('users-modal').classList.remove('hidden');
+    }
+
+    function closeUsersModal() {
+        document.getElementById('users-modal').classList.add('hidden');
+    }
+
+    async function loadUsers() {
+        const res = await fetch('/users');
+        const users = await res.json();
+        
+        document.getElementById('users-rows').innerHTML = users.map(u => `
+            <tr class="hover:bg-gray-50 transition">
+                <td class="p-3 font-bold text-gray-500">${u.id}</td>
+                <td class="p-3 font-bold text-black">${u.username}</td>
+                <td class="p-3 text-black">${u.email || '<span class="text-gray-400 italic">No Email</span>'}</td>
+                <td class="p-3"><span class="px-2 py-1 rounded text-[9px] font-black uppercase bg-gray-200 text-black">${u.role || 'editor'}</span></td>
+                <td class="p-3 text-center">
+                    ${u.username === currentUser 
+                        ? '<span class="text-green-600 font-bold text-[9px] uppercase">Active User</span>' 
+                        : `<button onclick="deleteUser(${u.id})" class="text-red-600 font-bold text-[10px] uppercase hover:bg-red-50 px-2 py-1 rounded transition">🗑️ Delete</button>`}
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    async function deleteUser(id) {
+        if (confirm("⚠️ WARNING: Are you sure you want to permanently delete this user? This cannot be undone.")) {
+            await fetch(`/users/${id}`, { method: 'DELETE' });
+            loadUsers(); // Refresh the list immediately after deleting
+        }
+    }
 </script>
 </body>
 </html>

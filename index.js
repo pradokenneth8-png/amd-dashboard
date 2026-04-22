@@ -82,6 +82,24 @@ app.post('/register', async (req, res) => {
   } catch (err) { res.status(500).send(err.message); }
 });
 
+// --- ADMIN: MANAGE USERS ---
+app.get('/users', async (req, res) => {
+  try {
+    // Fetches all users so the admin can see them
+    const result = await pool.query('SELECT id, username, email, role FROM users ORDER BY username ASC');
+    res.json(result.rows);
+  } catch (err) { res.status(500).send(err.message); }
+});
+
+app.delete('/users/:id', async (req, res) => {
+  try {
+    const userId = req.params.id;
+    // Deletes the specific user from the database
+    await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+    res.json({ message: "User deleted successfully" });
+  } catch (err) { res.status(500).send(err.message); }
+});
+
 // --- CORE DATA ---
 app.get('/teams', async (req, res) => {
   try {
