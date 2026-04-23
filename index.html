@@ -46,10 +46,15 @@
 
             <button id="auth-btn" onclick="handleAuth()" class="w-full bg-amd text-white py-3 rounded-lg font-bold uppercase shadow-lg hover:bg-red-700 transition">Unlock Dashboard</button>
         </div>
-        <div class="mt-6 pt-4 border-t border-gray-100">
-            <p id="auth-toggle-text" class="text-xs text-black font-bold">Don't have an account?</p>
-            <button onclick="toggleAuthMode()" id="auth-toggle-btn" class="text-amd font-bold text-xs uppercase hover:underline mt-1">Create Account</button>
+        
+        <div class="mt-6 pt-4 border-t border-gray-100 flex justify-between items-center text-left">
+            <div>
+                <p id="auth-toggle-text" class="text-[10px] text-black font-bold">Don't have an account?</p>
+                <button onclick="toggleAuthMode()" id="auth-toggle-btn" class="text-amd font-bold text-xs uppercase hover:underline mt-1">Create Account</button>
+            </div>
+            <button onclick="handleForgotPassword()" id="forgot-pw-btn" class="text-blue-600 font-bold text-[10px] uppercase hover:underline">Forgot Password?</button>
         </div>
+        
         <p id="login-error" class="text-red-500 text-[10px] mt-4 font-bold uppercase hidden"></p>
     </div>
 </div>
@@ -92,6 +97,8 @@
                 </div>
 
                 <div class="flex flex-wrap justify-center gap-2 items-center">
+                    <button onclick="openChangePasswordModal()" class="bg-gray-800 border border-gray-600 text-gray-300 px-3 py-1 rounded-full font-bold text-[10px] hover:text-white transition">🔑 PASSWORD</button>
+                    
                     <button id="admin-users-btn" onclick="openUsersModal()" class="hidden bg-purple-700 hover:bg-purple-600 text-white px-3 py-1 rounded-full font-bold text-[10px] transition">👥 USERS</button>
                     <button onclick="showHistory()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded-full font-bold text-[10px] transition">📜 LOGS</button>
                     <button onclick="exportToPDF()" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-full font-bold text-[10px]">📊 PDF</button>
@@ -176,6 +183,18 @@
             <div id="gantt"></div>
         </div>
     </main>
+
+    <div id="change-pw-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-[70]">
+        <div class="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+            <h2 class="text-lg font-black italic uppercase mb-4 text-black border-b pb-2">Change Password</h2>
+            <form id="changePwForm" class="space-y-4">
+                <input type="password" id="old-pw" placeholder="Current Password" class="w-full p-3 border rounded bg-gray-50 text-sm text-black" required>
+                <input type="password" id="new-pw" placeholder="New Password" class="w-full p-3 border rounded bg-gray-50 text-sm text-black" required>
+                <button type="submit" class="w-full bg-black text-white py-3 rounded-lg font-bold text-xs uppercase hover:bg-gray-800 transition">Update Password</button>
+                <button type="button" onclick="closeChangePasswordModal()" class="w-full mt-2 text-black font-bold text-xs uppercase hover:underline">Cancel</button>
+            </form>
+        </div>
+    </div>
 
     <div id="remarks-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-[70]">
         <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
@@ -311,6 +330,9 @@
         document.getElementById('reg-email').classList.toggle('hidden', isLoginMode);
         document.getElementById('reg-team').classList.toggle('hidden', isLoginMode);
         
+        // Hide Forgot Password button if registering
+        document.getElementById('forgot-pw-btn').classList.toggle('hidden', !isLoginMode);
+        
         generateCaptcha();
     }
 
@@ -356,7 +378,46 @@
         } else { alert(data.message); generateCaptcha(); }
     }
 
-    // NEW LOGOUT FUNCTION
+    // --- NEW PASSWORD LOGIC ---
+    async function handleForgotPassword() {
+        const username = document.getElementById('username').value;
+        if (!username) return alert("Please enter your Username in the box above first to reset your password.");
+        
+        if (confirm(`Reset password for ${username}? A temporary password will be emailed to you.`)) {
+            const res = await fetch('/forgot-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username })
+            });
+            const data = await res.json();
+            alert(data.message);
+        }
+    }
+
+    function openChangePasswordModal() {
+        document.getElementById('changePwForm').reset();
+        document.getElementById('change-pw-modal').classList.remove('hidden');
+    }
+
+    function closeChangePasswordModal() {
+        document.getElementById('change-pw-modal').classList.add('hidden');
+    }
+
+    document.getElementById('changePwForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const oldPassword = document.getElementById('old-pw').value;
+        const newPassword = document.getElementById('new-pw').value;
+        
+        const res = await fetch('/change-password', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: currentUser, oldPassword, newPassword })
+        });
+        const data = await res.json();
+        alert(data.message);
+        if (data.success) closeChangePasswordModal();
+    });
+
     async function handleLogout() {
         if (currentUser) {
             try {
@@ -593,7 +654,6 @@
         closeModal(); loadData();
     });
 
-    // UPDATED LOGS FUNCTION TO HANDLE LOGIN/LOGOUT
     async function showHistory() {
         const res = await fetch('/logs'); const logs = await res.json();
         document.getElementById('history-rows').innerHTML = logs.map(l => {

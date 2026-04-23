@@ -33,7 +33,6 @@ app.post('/login', async (req, res) => {
     if (result.rows.length > 0) {
       const userRole = result.rows[0].role || 'editor';
       
-      // NEW: Log the login action in the database
       await pool.query('INSERT INTO audit_logs (project_id, action, changed_by) VALUES ($1, $2, $3)', [null, 'User Logged In', username]);
 
       res.json({ success: true, username: result.rows[0].username, role: userRole });
@@ -86,7 +85,6 @@ app.post('/register', async (req, res) => {
   } catch (err) { res.status(500).send(err.message); }
 });
 
-// NEW: Handle Logout Logging
 app.post('/logout', async (req, res) => {
     try {
         const { username } = req.body;
@@ -96,6 +94,52 @@ app.post('/logout', async (req, res) => {
         res.json({ success: true });
     } catch (err) { res.status(500).send(err.message); }
 });
+
+// --- PASSWORD MANAGEMENT ---
+app.post('/forgot-password', async (req, res) => {
+    try {
+      const { username } = req.body;
+      const userRes = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+      if (userRes.rows.length === 0) return res.status(404).json({ success: false, message: "User not found." });
+  
+      const user = userRes.rows[0];
+      if (!user.email) return res.status(400).json({ success: false, message: "No email linked to this account. Contact your Administrator." });
+  
+      // Generate a random 8-character temporary password
+      const tempPassword = Math.random().toString(36).slice(-8);
+  
+      await pool.query('UPDATE users SET password = $1 WHERE username = $2', [tempPassword, username]);
+  
+      const mailOptions = {
+          from: '"AMD Portal" <amdteam.noreply@gmail.com>',
+          to: user.email,
+          subject: 'AMD Portal - Password Reset',
+          html: `
+              <div style="font-family: sans-serif; padding: 20px;">
+                  <h2 style="color: #ED1C24; font-style: italic;">PASSWORD RESET</h2>
+                  <p>Hello <strong>${username}</strong>,</p>
+                  <p>Your password has been reset. Your new temporary password is:</p>
+                  <h3 style="background: #eee; padding: 10px; display: inline-block;">${tempPassword}</h3>
+                  <p>Please log in and update your password immediately using the "🔑 PASSWORD" button in the header.</p>
+              </div>
+          `
+      };
+      transporter.sendMail(mailOptions);
+      res.json({ success: true, message: "A temporary password has been emailed to you." });
+    } catch (err) { res.status(500).send(err.message); }
+  });
+  
+  app.put('/change-password', async (req, res) => {
+      try {
+          const { username, oldPassword, newPassword } = req.body;
+          const userRes = await pool.query('SELECT * FROM users WHERE username = $1 AND password = $2', [username, oldPassword]);
+          
+          if (userRes.rows.length === 0) return res.status(401).json({ success: false, message: "Incorrect current password." });
+  
+          await pool.query('UPDATE users SET password = $1 WHERE username = $2', [newPassword, username]);
+          res.json({ success: true, message: "Password updated successfully!" });
+      } catch (err) { res.status(500).send(err.message); }
+  });
 
 // --- ADMIN: MANAGE USERS ---
 app.get('/users', async (req, res) => {
