@@ -30,12 +30,18 @@ app.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
     const result = await pool.query('SELECT * FROM users WHERE username = $1 AND password = $2', [username, password]);
+    
     if (result.rows.length > 0) {
-      const userRole = result.rows[0].role || 'editor';
+      const user = result.rows[0];
       
-      await pool.query('INSERT INTO audit_logs (project_id, action, changed_by) VALUES ($1, $2, $3)', [null, 'User Logged In', username]);
+      // NEW: Block login if not approved by admin
+      if (user.is_approved === false) {
+          return res.status(401).json({ success: false, message: "Your account is still pending Admin approval." });
+      }
 
-      res.json({ success: true, username: result.rows[0].username, role: userRole });
+      const userRole = user.role || 'editor';
+      await pool.query('INSERT INTO audit_logs (project_id, action, changed_by) VALUES ($1, $2, $3)', [null, 'User Logged In', username]);
+      res.json({ success: true, username: user.username, role: userRole });
     } else {
       res.status(401).json({ success: false, message: "Invalid username or password" });
     }
@@ -48,37 +54,28 @@ app.post('/register', async (req, res) => {
     const check = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
     if (check.rows.length > 0) return res.status(400).json({ success: false, message: "Username taken" });
     
+    // NEW: Insert with is_approved set to FALSE explicitly
     await pool.query(
-        'INSERT INTO users (username, password, email, team_id) VALUES ($1, $2, $3, $4)', 
+        'INSERT INTO users (username, password, email, team_id, is_approved) VALUES ($1, $2, $3, $4, FALSE)', 
         [username, password, email || null, team_id || null]
     );
 
-    // Send Welcome Email
+    // Send "Pending" Email instead of Welcome email
     if (email) {
-        let teamName = 'Asset Management Department';
-        if (team_id) {
-            const teamRes = await pool.query('SELECT name FROM teams WHERE id = $1', [team_id]);
-            if (teamRes.rows.length > 0) teamName = teamRes.rows[0].name;
-        }
-
         const mailOptions = {
             from: '"AMD Portal" <amdteam.noreply@gmail.com>',
             to: email,
-            subject: 'Welcome to the AMD Enterprise Portal',
+            subject: 'AMD Portal - Registration Received',
             html: `
                 <div style="font-family: sans-serif; padding: 20px;">
-                    <h2 style="color: #ED1C24; font-style: italic;">AMD ACCESS GRANTED</h2>
+                    <h2 style="color: #ED1C24; font-style: italic;">REGISTRATION PENDING</h2>
                     <p>Hello <strong>${username}</strong>,</p>
-                    <p>Your account has been successfully created and linked to the <strong>${teamName}</strong> team.</p>
-                    <p>You will now receive automated updates and deadline notifications for your team's projects.</p>
-                    <br/>
-                    <p style="font-size: 12px; color: gray;">This is an automated message. Please do not reply.</p>
+                    <p>Your account request has been received. It is currently locked pending Administrator approval.</p>
+                    <p>You will receive another email once your access has been granted.</p>
                 </div>
             `
         };
-        transporter.sendMail(mailOptions, (error) => {
-            if (error) console.error('Error sending welcome email:', error);
-        });
+        transporter.sendMail(mailOptions, (error) => { if(error) console.error(error); });
     }
 
     res.json({ success: true });
@@ -105,9 +102,7 @@ app.post('/forgot-password', async (req, res) => {
       const user = userRes.rows[0];
       if (!user.email) return res.status(400).json({ success: false, message: "No email linked to this account. Contact your Administrator." });
   
-      // Generate a random 8-character temporary password
       const tempPassword = Math.random().toString(36).slice(-8);
-  
       await pool.query('UPDATE users SET password = $1 WHERE username = $2', [tempPassword, username]);
   
       const mailOptions = {
@@ -127,26 +122,61 @@ app.post('/forgot-password', async (req, res) => {
       transporter.sendMail(mailOptions);
       res.json({ success: true, message: "A temporary password has been emailed to you." });
     } catch (err) { res.status(500).send(err.message); }
-  });
+});
   
-  app.put('/change-password', async (req, res) => {
-      try {
-          const { username, oldPassword, newPassword } = req.body;
-          const userRes = await pool.query('SELECT * FROM users WHERE username = $1 AND password = $2', [username, oldPassword]);
-          
-          if (userRes.rows.length === 0) return res.status(401).json({ success: false, message: "Incorrect current password." });
-  
-          await pool.query('UPDATE users SET password = $1 WHERE username = $2', [newPassword, username]);
-          res.json({ success: true, message: "Password updated successfully!" });
-      } catch (err) { res.status(500).send(err.message); }
-  });
+app.put('/change-password', async (req, res) => {
+    try {
+        const { username, oldPassword, newPassword } = req.body;
+        const userRes = await pool.query('SELECT * FROM users WHERE username = $1 AND password = $2', [username, oldPassword]);
+        
+        if (userRes.rows.length === 0) return res.status(401).json({ success: false, message: "Incorrect current password." });
+
+        await pool.query('UPDATE users SET password = $1 WHERE username = $2', [newPassword, username]);
+        res.json({ success: true, message: "Password updated successfully!" });
+    } catch (err) { res.status(500).send(err.message); }
+});
 
 // --- ADMIN: MANAGE USERS ---
 app.get('/users', async (req, res) => {
   try {
-    const result = await pool.query('SELECT id, username, email, role FROM users ORDER BY username ASC');
+    const result = await pool.query('SELECT id, username, email, role, is_approved FROM users ORDER BY is_approved ASC, username ASC');
     res.json(result.rows);
   } catch (err) { res.status(500).send(err.message); }
+});
+
+// NEW: Approve User Route
+app.put('/users/:id/approve', async (req, res) => {
+    try {
+        const userId = req.params.id;
+        const result = await pool.query('UPDATE users SET is_approved = TRUE WHERE id = $1 RETURNING *', [userId]);
+        
+        if (result.rows.length > 0) {
+            const user = result.rows[0];
+            if (user.email) {
+                let teamName = 'Asset Management Department';
+                if (user.team_id) {
+                    const teamRes = await pool.query('SELECT name FROM teams WHERE id = $1', [user.team_id]);
+                    if (teamRes.rows.length > 0) teamName = teamRes.rows[0].name;
+                }
+
+                const mailOptions = {
+                    from: '"AMD Portal" <amdteam.noreply@gmail.com>',
+                    to: user.email,
+                    subject: 'Account Approved - AMD Enterprise Portal',
+                    html: `
+                        <div style="font-family: sans-serif; padding: 20px;">
+                            <h2 style="color: #10B981; font-style: italic;">AMD ACCESS GRANTED</h2>
+                            <p>Hello <strong>${user.username}</strong>,</p>
+                            <p>Your account has been <strong>approved</strong> by the Administrator and is linked to the <strong>${teamName}</strong> team.</p>
+                            <p>You can now log in to the portal using the credentials you created.</p>
+                        </div>
+                    `
+                };
+                transporter.sendMail(mailOptions, (error) => { if(error) console.error(error); });
+            }
+        }
+        res.json({ success: true, message: "User approved" });
+    } catch (err) { res.status(500).send(err.message); }
 });
 
 app.delete('/users/:id', async (req, res) => {
@@ -165,7 +195,6 @@ app.get('/teams', async (req, res) => {
   } catch (err) { res.status(500).send(err.message); }
 });
 
-// Fetches projects based on Active vs Archived status
 app.get('/projects', async (req, res) => {
   try {
     const { team_id, status, showArchived } = req.query;
@@ -173,7 +202,6 @@ app.get('/projects', async (req, res) => {
     let params = [];
     let conditions = [];
 
-    // Filter by archived status
     const isArchived = showArchived === 'true';
     conditions.push(`p.archived = ${isArchived ? 'TRUE' : 'FALSE'}`);
 
@@ -237,7 +265,6 @@ app.put('/projects/:id', async (req, res) => {
     await pool.query('INSERT INTO audit_logs (project_id, action, changed_by) VALUES ($1, $2, $3)', 
       [req.params.id, `Updated details & progress to ${progress}%`, user || 'Anonymous']);
 
-    // Send update email
     if (team_id) {
         const teamUsers = await pool.query('SELECT email FROM users WHERE team_id = $1 AND email IS NOT NULL', [team_id]);
         const emailList = teamUsers.rows.map(u => u.email).join(',');
@@ -252,12 +279,10 @@ app.put('/projects/:id', async (req, res) => {
             transporter.sendMail(mailOptions, (error) => { if(error) console.error(error); });
         }
     }
-
     res.json({ message: "Updated" });
   } catch (err) { res.status(500).send(err.message); }
 });
 
-// Archive Route
 app.put('/projects/:id/archive', async (req, res) => {
     try {
         const { user } = req.body;
@@ -288,7 +313,7 @@ cron.schedule('0 8 * * *', async () => {
             FROM projects p
             JOIN teams t ON p.team_id = t.id
             JOIN users u ON u.team_id = t.id
-            WHERE p.status != 'Completed' AND p.archived = FALSE AND u.email IS NOT NULL
+            WHERE p.status != 'Completed' AND p.archived = FALSE AND u.email IS NOT NULL AND u.is_approved = TRUE
         `;
         
         const result = await pool.query(query);

@@ -272,8 +272,9 @@
         </div>
     </div>
 
+    <!-- Admin User Management Modal -->
     <div id="users-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-[60]">
-        <div class="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] flex flex-col text-sm shadow-2xl">
+        <div class="bg-white rounded-2xl p-6 max-w-3xl w-full max-h-[80vh] flex flex-col text-sm shadow-2xl">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-xl font-black italic uppercase text-black">Manage Users</h2>
                 <button onclick="closeUsersModal()" class="text-black hover:text-red-500 font-bold text-lg">✕</button>
@@ -282,10 +283,9 @@
                 <table class="w-full text-left text-xs">
                     <thead class="bg-gray-50 text-black text-[10px] font-bold uppercase sticky top-0 border-b">
                         <tr>
-                            <th class="p-3">ID</th>
                             <th class="p-3">Username</th>
                             <th class="p-3">Email</th>
-                            <th class="p-3">Role</th>
+                            <th class="p-3">Status</th>
                             <th class="p-3 text-center">Action</th>
                         </tr>
                     </thead>
@@ -324,13 +324,11 @@
     function toggleAuthMode() {
         isLoginMode = !isLoginMode;
         document.getElementById('auth-title').innerText = isLoginMode ? "AMD Access" : "Join AMD Portal";
-        document.getElementById('auth-btn').innerText = isLoginMode ? "Unlock Dashboard" : "Create Account";
+        document.getElementById('auth-btn').innerText = isLoginMode ? "Unlock Dashboard" : "Register Account";
         document.getElementById('auth-toggle-btn').innerText = isLoginMode ? "Create Account" : "Back to Login";
         
         document.getElementById('reg-email').classList.toggle('hidden', isLoginMode);
         document.getElementById('reg-team').classList.toggle('hidden', isLoginMode);
-        
-        // Hide Forgot Password button if registering
         document.getElementById('forgot-pw-btn').classList.toggle('hidden', !isLoginMode);
         
         generateCaptcha();
@@ -356,7 +354,7 @@
         
         if (res.ok) {
             if (!isLoginMode) { 
-                alert("Account Created! A welcome email has been sent. Pending Admin approval."); 
+                alert("Registration Received! Your account is currently locked pending Admin approval. You will receive an email once activated."); 
                 toggleAuthMode(); 
             } else { 
                 currentUser = data.username; 
@@ -378,7 +376,6 @@
         } else { alert(data.message); generateCaptcha(); }
     }
 
-    // --- NEW PASSWORD LOGIC ---
     async function handleForgotPassword() {
         const username = document.getElementById('username').value;
         if (!username) return alert("Please enter your Username in the box above first to reset your password.");
@@ -738,24 +735,38 @@
         const users = await res.json();
         
         document.getElementById('users-rows').innerHTML = users.map(u => `
-            <tr class="hover:bg-gray-50 transition">
-                <td class="p-3 font-bold text-gray-500">${u.id}</td>
+            <tr class="hover:bg-gray-50 transition ${!u.is_approved ? 'bg-yellow-50' : ''}">
                 <td class="p-3 font-bold text-black">${u.username}</td>
                 <td class="p-3 text-black">${u.email || '<span class="text-gray-400 italic">No Email</span>'}</td>
-                <td class="p-3"><span class="px-2 py-1 rounded text-[9px] font-black uppercase bg-gray-200 text-black">${u.role || 'editor'}</span></td>
+                <td class="p-3">
+                    ${!u.is_approved 
+                        ? '<span class="px-2 py-1 rounded text-[9px] font-black uppercase bg-yellow-200 text-yellow-800">Pending</span>'
+                        : `<span class="px-2 py-1 rounded text-[9px] font-black uppercase bg-green-200 text-green-800">${u.role || 'editor'}</span>`
+                    }
+                </td>
                 <td class="p-3 text-center">
                     ${u.username === currentUser 
                         ? '<span class="text-green-600 font-bold text-[9px] uppercase">Active User</span>' 
-                        : `<button onclick="deleteUser(${u.id})" class="text-red-600 font-bold text-[10px] uppercase hover:bg-red-50 px-2 py-1 rounded transition">🗑️ Delete</button>`}
+                        : `${!u.is_approved ? `<button onclick="approveUser(${u.id})" class="text-green-600 font-bold text-[10px] uppercase hover:bg-green-50 px-2 py-1 rounded transition mr-2">✔️ Approve</button>` : ''}
+                           <button onclick="deleteUser(${u.id})" class="text-red-600 font-bold text-[10px] uppercase hover:bg-red-50 px-2 py-1 rounded transition">🗑️ Delete</button>`
+                    }
                 </td>
             </tr>
         `).join('');
     }
 
+    // NEW: Function to trigger the backend approval
+    async function approveUser(id) {
+        if (confirm("Approve this user and grant them access to the portal?")) {
+            await fetch(`/users/${id}/approve`, { method: 'PUT' });
+            loadUsers(); // Refresh the list to remove the yellow badge
+        }
+    }
+
     async function deleteUser(id) {
         if (confirm("⚠️ WARNING: Are you sure you want to permanently delete this user? This cannot be undone.")) {
             await fetch(`/users/${id}`, { method: 'DELETE' });
-            loadUsers(); // Refresh the list immediately after deleting
+            loadUsers();
         }
     }
 </script>
