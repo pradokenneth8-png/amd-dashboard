@@ -22,6 +22,9 @@
         #main-app { display: none; }
         @keyframes pulse-red { 0%, 100% { background-color: #fff; } 50% { background-color: #fee2e2; } }
         .delayed-alert { animation: pulse-red 2s infinite; border-left: 5px solid var(--amd-red) !important; }
+        
+        optgroup { font-weight: 900; color: #000; font-style: italic; text-transform: uppercase; }
+        option { font-weight: 600; color: #333; font-style: normal; }
     </style>
 </head>
 <body class="bg-gray-100 text-black">
@@ -34,8 +37,7 @@
             
             <input type="email" id="reg-email" placeholder="Email Address" class="hidden w-full p-3 border rounded-lg bg-gray-50 text-sm text-black">
             <select id="reg-team" class="hidden w-full p-3 border rounded-lg bg-gray-50 text-sm text-black">
-                <option value="">Select your Team...</option>
-            </select>
+                </select>
 
             <input type="password" id="password" placeholder="Password" class="w-full p-3 border rounded-lg bg-gray-50 text-sm text-black">
             
@@ -72,7 +74,7 @@
             <div class="flex flex-col lg:flex-row gap-4 w-full xl:w-auto xl:justify-end items-center">
                 
                 <div class="flex flex-wrap justify-center gap-2 border-b lg:border-b-0 lg:border-r border-gray-700 pb-3 lg:pb-0 lg:pr-4">
-                    <select id="timeFilter" onchange="renderTable()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold text-yellow-400">
+                    <select id="timeFilter" onchange="applyLocalFilters()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold text-yellow-400">
                         <option value="all">ALL DATES</option>
                         <option value="overdue">⚠️ OVERDUE</option>
                         <option value="week">DUE NEXT 7 DAYS</option>
@@ -86,11 +88,10 @@
                         <option value="Completed">COMPLETED</option>
                     </select>
                     
-                    <select id="teamFilter" onchange="loadData()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold">
-                        <option value="all">ALL TEAMS</option>
-                    </select>
+                    <select id="teamFilter" onchange="applyLocalFilters()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold">
+                        </select>
                     
-                    <select id="sortOrder" onchange="renderTable()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold">
+                    <select id="sortOrder" onchange="applyLocalFilters()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold">
                         <option value="asc">SORT A-Z</option>
                         <option value="desc">SORT Z-A</option>
                     </select>
@@ -212,11 +213,13 @@
                 <input type="text" id="name" placeholder="Project Name" class="w-full p-2 border rounded bg-gray-50 text-sm font-bold text-black" required>
                 <div class="space-y-1 border-t pt-2">
                     <label class="text-[10px] font-bold text-black uppercase">Primary Team</label>
-                    <select id="team_id" class="w-full p-2 border rounded bg-gray-50 text-sm text-black"></select>
+                    <select id="team_id" class="w-full p-2 border rounded bg-gray-50 text-sm text-black" required>
+                        </select>
                 </div>
                 <div class="space-y-1">
                     <label class="text-[10px] font-bold text-black uppercase">Additional Teams</label>
-                    <div id="additionalTeamsContainer" class="bg-gray-50 p-2 border rounded grid grid-cols-2 gap-2 max-h-24 overflow-y-auto text-black"></div>
+                    <div id="additionalTeamsContainer" class="bg-gray-50 p-2 border rounded grid grid-cols-2 gap-2 max-h-48 overflow-y-auto text-black">
+                        </div>
                 </div>
                 <div class="grid grid-cols-2 gap-4 border-t pt-2">
                     <div class="space-y-1">
@@ -272,7 +275,6 @@
         </div>
     </div>
 
-    <!-- Admin User Management Modal -->
     <div id="users-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-[60]">
         <div class="bg-white rounded-2xl p-6 max-w-3xl w-full max-h-[80vh] flex flex-col text-sm shadow-2xl">
             <div class="flex justify-between items-center mb-4">
@@ -300,7 +302,10 @@
 </div>
 
 <script>
-    let statusChartInstance, heatmapChartInstance, allProjects = [], allTeamsList = [], currentPage = 1, currentUser = null, isLoginMode = true;
+    // --- UPDATED GLOBALS: Added currentFilteredProjects ---
+    let statusChartInstance, heatmapChartInstance;
+    let allProjects = [], currentFilteredProjects = [], allTeamsList = [];
+    let currentPage = 1, currentUser = null, isLoginMode = true;
     let currentUserRole = 'editor'; 
     let isArchiveView = false; 
     let captchaNum1, captchaNum2;
@@ -312,11 +317,76 @@
         document.getElementById('captcha-answer').value = '';
     }
 
+    function generateTeamGroupsHtml(teams, type) {
+        let groupedTeams = { 
+            "PMDG I": [], 
+            "PMDG II": [], 
+            "RMFSG": [], 
+            "OD": [], 
+            "Other Teams": [] 
+        };
+        
+        teams.forEach(t => {
+            const name = t.name.trim().toUpperCase();
+            if (name === "PMDG I" || name === "PMDD I" || name === "PMDD II") groupedTeams["PMDG I"].push(t);
+            else if (name === "PMDG II" || name === "PMDD III" || name === "PMDD IV") groupedTeams["PMDG II"].push(t);
+            else if (name === "RMFSG" || name === "FSD" || name === "RMCD") groupedTeams["RMFSG"].push(t);
+            else if (name === "OD" || name === "TSCD" || name === "AOSD") groupedTeams["OD"].push(t);
+            else groupedTeams["Other Teams"].push(t);
+        });
+
+        let html = "";
+        if (type === 'filter') html = '<option value="all">ALL TEAMS</option>';
+        else if (type === 'register') html = '<option value="" disabled selected>Select your Team...</option>';
+        else if (type === 'modal') html = '<option value="" disabled selected>Select Primary Team...</option>';
+
+        for (const [group, tList] of Object.entries(groupedTeams)) {
+            if (tList.length > 0) {
+                html += `<optgroup label="${group}">`;
+                tList.forEach(t => {
+                    html += `<option value="${t.id}">${t.name}</option>`;
+                });
+                html += `</optgroup>`;
+            }
+        }
+        return html;
+    }
+
+    function generateTeamCheckboxesHtml(teams) {
+        let groupedTeams = { 
+            "PMDG I": [], 
+            "PMDG II": [], 
+            "RMFSG": [], 
+            "OD": [], 
+            "Other Teams": [] 
+        };
+        
+        teams.forEach(t => {
+            const name = t.name.trim().toUpperCase();
+            if (name === "PMDG I" || name === "PMDD I" || name === "PMDD II") groupedTeams["PMDG I"].push(t);
+            else if (name === "PMDG II" || name === "PMDD III" || name === "PMDD IV") groupedTeams["PMDG II"].push(t);
+            else if (name === "RMFSG" || name === "FSD" || name === "RMCD") groupedTeams["RMFSG"].push(t);
+            else if (name === "OD" || name === "TSCD" || name === "AOSD") groupedTeams["OD"].push(t);
+            else groupedTeams["Other Teams"].push(t);
+        });
+
+        let html = "";
+        for (const [group, tList] of Object.entries(groupedTeams)) {
+            if (tList.length > 0) {
+                html += `<div class="col-span-2 border-b border-gray-300 mt-2 mb-1 pb-1 text-[10px] text-gray-500 font-black uppercase tracking-wider">${group}</div>`;
+                tList.forEach(t => {
+                    html += `<label class="flex items-center space-x-2 text-[10px] font-bold p-1 hover:bg-gray-200 rounded cursor-pointer text-black"><input type="checkbox" value="${t.name}" class="add-team-cb"><span class="text-black">${t.name}</span></label>`;
+                });
+            }
+        }
+        return html;
+    }
+
     async function preLoadTeams() {
         try {
             const res = await fetch('/teams');
             const teams = await res.json();
-            document.getElementById('reg-team').innerHTML += teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+            document.getElementById('reg-team').innerHTML = generateTeamGroupsHtml(teams, 'register');
         } catch(e) { console.error("Could not load teams for registration", e); }
     }
     preLoadTeams();
@@ -430,14 +500,84 @@
 
     generateCaptcha();
 
+    // --- NEW: SMART DATA LOADING ---
     async function loadData() {
-        const team = document.getElementById('teamFilter').value;
         const status = document.getElementById('statusFilter').value;
-        const res = await fetch(`/projects?team_id=${team}&status=${status}&showArchived=${isArchiveView}`);
+        
+        // Notice we explicitly ask the backend for "all" teams.
+        // We will do the Smart Filtering in the browser instead.
+        const res = await fetch(`/projects?team_id=all&status=${status}&showArchived=${isArchiveView}`);
         allProjects = await res.json();
-        updateKPIs(allProjects);
-        updateNotifications(allProjects);
-        renderTable(); updateChart(); renderHeatmap(); renderGantt();
+        
+        // Trigger the Smart Filter immediately after loading the raw data
+        applyLocalFilters();
+    }
+
+    // --- NEW: CASCADING SMART FILTER ---
+    function applyLocalFilters() {
+        const teamFilterValue = document.getElementById('teamFilter').value;
+        const timeFilter = document.getElementById('timeFilter').value;
+        const sortOrder = document.getElementById('sortOrder').value;
+        const today = new Date(); today.setHours(0,0,0,0);
+        
+        // Get the exact name of the selected team filter
+        let selectedTeamName = "all";
+        if (teamFilterValue !== "all") {
+            const selectedObj = allTeamsList.find(t => t.id == teamFilterValue);
+            if (selectedObj) selectedTeamName = selectedObj.name.trim().toUpperCase();
+        }
+
+        // Apply filters locally
+        currentFilteredProjects = allProjects.filter(p => {
+            
+            // 1. Time Filter Check
+            const endDate = new Date(p.end_date);
+            if (timeFilter === 'overdue' && (endDate >= today || p.status === 'Completed')) return false;
+            if (timeFilter === 'month' && (endDate.getMonth() !== today.getMonth() || endDate.getFullYear() !== today.getFullYear())) return false;
+            if (timeFilter === 'week') {
+                const nextWeek = new Date(today); nextWeek.setDate(today.getDate() + 7);
+                if (endDate < today || endDate > nextWeek) return false;
+            }
+
+            // 2. SMART TEAM FILTER Check (This does the grouping!)
+            if (selectedTeamName !== "all") {
+                const pTeam = p.team_name.trim().toUpperCase();
+                let match = false;
+                
+                if (selectedTeamName === "ALL PMDG") {
+                    match = ["ALL PMDG", "PMDG I", "PMDG II", "PMDD I", "PMDD II", "PMDD III", "PMDD IV"].includes(pTeam);
+                } else if (selectedTeamName === "PMDG I") {
+                    match = ["PMDG I", "PMDD I", "PMDD II"].includes(pTeam);
+                } else if (selectedTeamName === "PMDG II") {
+                    match = ["PMDG II", "PMDD III", "PMDD IV"].includes(pTeam);
+                } else if (selectedTeamName === "RMFSG") {
+                    match = ["RMFSG", "FSD", "RMCD"].includes(pTeam);
+                } else if (selectedTeamName === "OD") {
+                    match = ["OD", "TSCD", "AOSD"].includes(pTeam);
+                } else {
+                    // Exact match for sub-departments (like PMDD I isolated)
+                    match = (pTeam === selectedTeamName);
+                }
+                
+                if (!match) return false;
+            }
+
+            return true;
+        });
+
+        // 3. Apply Alphabetical Sorting
+        currentFilteredProjects.sort((a, b) => sortOrder === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
+
+        // 4. Reset Pagination to page 1
+        currentPage = 1;
+
+        // 5. Update EVERYTHING on the dashboard instantly
+        updateKPIs(currentFilteredProjects);
+        updateNotifications(currentFilteredProjects);
+        updateChart(currentFilteredProjects);
+        renderHeatmap(currentFilteredProjects);
+        renderGantt(currentFilteredProjects);
+        renderTable(); 
     }
 
     function updateKPIs(projects) {
@@ -483,22 +623,11 @@
     }
 
     function renderTable() {
-        const sortOrder = document.getElementById('sortOrder').value;
-        const timeFilter = document.getElementById('timeFilter').value;
-        const today = new Date(); today.setHours(0,0,0,0);
-        let filtered = allProjects.filter(p => {
-            const endDate = new Date(p.end_date);
-            if (timeFilter === 'overdue') return endDate < today && p.status !== 'Completed';
-            if (timeFilter === 'month') return endDate.getMonth() === today.getMonth() && endDate.getFullYear() === today.getFullYear();
-            if (timeFilter === 'week') {
-                const nextWeek = new Date(today); nextWeek.setDate(today.getDate() + 7);
-                return endDate >= today && endDate <= nextWeek;
-            }
-            return true;
-        });
-        filtered.sort((a, b) => sortOrder === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
         const start = (currentPage - 1) * 10;
-        const paginated = filtered.slice(start, start + 10);
+        const today = new Date(); today.setHours(0,0,0,0);
+        
+        // Look at currentFilteredProjects instead of doing the filtering here!
+        const paginated = currentFilteredProjects.slice(start, start + 10);
         
         document.getElementById('project-list-rows').innerHTML = paginated.map(p => {
             const overdue = new Date(p.end_date) < today && p.status !== 'Completed';
@@ -529,8 +658,9 @@
                 <td class="p-4 text-center">${actionButtons}</td>
             </tr>`;
         }).join('');
+        
         document.getElementById('pageInfo').innerText = `Page ${currentPage}`;
-        document.getElementById('nextBtn').disabled = start + 10 >= filtered.length;
+        document.getElementById('nextBtn').disabled = start + 10 >= currentFilteredProjects.length;
         document.getElementById('prevBtn').disabled = currentPage === 1;
     }
 
@@ -566,9 +696,9 @@
         }
     }
 
-    function updateChart() {
+    function updateChart(projects) {
         const counts = { 'On Track': 0, 'Delayed': 0, 'Completed': 0 };
-        allProjects.forEach(p => counts[p.status]++);
+        projects.forEach(p => counts[p.status]++);
         const ctx = document.getElementById('statusChart').getContext('2d');
         if (statusChartInstance) statusChartInstance.destroy();
         Chart.register(ChartDataLabels);
@@ -578,10 +708,10 @@
         });
     }
 
-    function renderHeatmap() {
+    function renderHeatmap(projects) {
         const teamData = {};
         allTeamsList.forEach(t => teamData[t.name] = { 'On Track': 0, 'Delayed': 0, 'Completed': 0 });
-        allProjects.forEach(p => { if(teamData[p.team_name]) teamData[p.team_name][p.status]++; });
+        projects.forEach(p => { if(teamData[p.team_name]) teamData[p.team_name][p.status]++; });
         const labels = Object.keys(teamData);
         const onTrack = labels.map(l => teamData[l]['On Track']);
         const delayed = labels.map(l => teamData[l]['Delayed']);
@@ -675,23 +805,25 @@
         } 
     }
 
-    function renderGantt() {
+    function renderGantt(projects) {
         const container = document.getElementById('gantt'); container.innerHTML = "";
-        if (allProjects.length > 0) {
-            const tasks = allProjects.map(p => ({ id: p.id.toString(), name: p.name, start: p.start_date.split('T')[0], end: p.end_date.split('T')[0], progress: p.progress }));
+        if (projects.length > 0) {
+            const tasks = projects.map(p => ({ id: p.id.toString(), name: p.name, start: p.start_date.split('T')[0], end: p.end_date.split('T')[0], progress: p.progress }));
             new Gantt("#gantt", tasks, { view_mode: 'Week', bar_height: 20 });
         }
     }
 
+    // CHANGED TO USE currentFilteredProjects
     function exportToPDF() {
         const { jsPDF } = window.jspdf; const doc = new jsPDF();
         doc.setFontSize(18); doc.setFont("helvetica", "bold"); doc.text("AMD STATUS REPORT", 14, 20);
-        doc.autoTable({ startY: 30, head: [['Project', 'Team', 'Status', 'Progress']], body: allProjects.map(p => [p.name, p.team_name, p.status, p.progress + "%"]), headStyles: { fillColor: [237, 28, 36] } });
+        doc.autoTable({ startY: 30, head: [['Project', 'Team', 'Status', 'Progress']], body: currentFilteredProjects.map(p => [p.name, p.team_name, p.status, p.progress + "%"]), headStyles: { fillColor: [237, 28, 36] } });
         doc.save("AMD_Report.pdf");
     }
 
+    // CHANGED TO USE currentFilteredProjects
     function exportToExcel() {
-        const dataToExport = allProjects.map(p => ({
+        const dataToExport = currentFilteredProjects.map(p => ({
             'Project Name': p.name,
             'Primary Team': p.team_name,
             'Additional Teams': p.secondary_team || '-',
@@ -708,11 +840,13 @@
     }
 
     async function init() {
-        const res = await fetch('/teams'); allTeamsList = await res.json();
-        const primary = allTeamsList.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
-        document.getElementById('team_id').innerHTML = primary;
-        document.getElementById('teamFilter').innerHTML += primary;
-        document.getElementById('additionalTeamsContainer').innerHTML = allTeamsList.map(t => `<label class="flex items-center space-x-2 text-[10px] font-bold p-1 hover:bg-gray-200 rounded cursor-pointer text-black"><input type="checkbox" value="${t.name}" class="add-team-cb"><span class="text-black">${t.name}</span></label>`).join('');
+        const res = await fetch('/teams'); 
+        allTeamsList = await res.json();
+        
+        document.getElementById('team_id').innerHTML = generateTeamGroupsHtml(allTeamsList, 'modal');
+        document.getElementById('teamFilter').innerHTML = generateTeamGroupsHtml(allTeamsList, 'filter');
+        document.getElementById('additionalTeamsContainer').innerHTML = generateTeamCheckboxesHtml(allTeamsList);
+        
         loadData();
     }
 
@@ -755,7 +889,6 @@
         `).join('');
     }
 
-    // NEW: Function to trigger the backend approval
     async function approveUser(id) {
         if (confirm("Approve this user and grant them access to the portal?")) {
             await fetch(`/users/${id}/approve`, { method: 'PUT' });
