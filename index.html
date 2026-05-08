@@ -88,15 +88,11 @@
                     
                     <select id="teamFilter" onchange="loadData()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold">
                         <option value="all">ALL TEAMS</option>
-                        <optgroup label="Divisions / Groups">
-                            <option value="GROUP_PMDG_ALL">PMDG (All)</option>
-                            <option value="GROUP_PMDG_I">PMDG I</option>
-                            <option value="GROUP_PMDG_II">PMDG II</option>
-                            <option value="GROUP_RMFSG">RMFSG</option>
-                            <option value="GROUP_OD">OD</option>
-                        </optgroup>
-                        <optgroup label="Individual Teams" id="individual-teams">
-                        </optgroup>
+                        <option value="GROUP_PMDG_ALL">PMDG (All)</option>
+                        <option value="GROUP_PMDG_I">PMDG I</option>
+                        <option value="GROUP_PMDG_II">PMDG II</option>
+                        <option value="GROUP_RMFSG">RMFSG</option>
+                        <option value="GROUP_OD">OD</option>
                     </select>
                     
                     <select id="sortOrder" onchange="renderTable()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold">
@@ -281,7 +277,6 @@
         </div>
     </div>
 
-    <!-- Admin User Management Modal -->
     <div id="users-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-[60]">
         <div class="bg-white rounded-2xl p-6 max-w-3xl w-full max-h-[80vh] flex flex-col text-sm shadow-2xl">
             <div class="flex justify-between items-center mb-4">
@@ -744,9 +739,7 @@
         const primary = allTeamsList.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
         document.getElementById('team_id').innerHTML = primary;
         
-        const individualTeamsSelect = document.getElementById('individual-teams');
-        if(individualTeamsSelect) individualTeamsSelect.innerHTML = primary;
-        else document.getElementById('teamFilter').innerHTML += primary;
+        document.getElementById('teamFilter').innerHTML += primary;
 
         document.getElementById('additionalTeamsContainer').innerHTML = allTeamsList.map(t => `<label class="flex items-center space-x-2 text-[10px] font-bold p-1 hover:bg-gray-200 rounded cursor-pointer text-black"><input type="checkbox" value="${t.name}" class="add-team-cb"><span class="text-black">${t.name}</span></label>`).join('');
         loadData();
