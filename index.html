@@ -88,11 +88,6 @@
                     
                     <select id="teamFilter" onchange="loadData()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold">
                         <option value="all">ALL TEAMS</option>
-                        <option value="GROUP_PMDG_ALL">PMDG (All)</option>
-                        <option value="GROUP_PMDG_I">PMDG I</option>
-                        <option value="GROUP_PMDG_II">PMDG II</option>
-                        <option value="GROUP_RMFSG">RMFSG</option>
-                        <option value="GROUP_OD">OD</option>
                     </select>
                     
                     <select id="sortOrder" onchange="renderTable()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold">
@@ -435,26 +430,31 @@
     generateCaptcha();
 
     async function loadData() {
-        const team = document.getElementById('teamFilter').value;
+        const teamSelect = document.getElementById('teamFilter');
+        const teamId = teamSelect.value;
+        const teamName = teamSelect.selectedIndex >= 0 ? teamSelect.options[teamSelect.selectedIndex].text : '';
         const status = document.getElementById('statusFilter').value;
         
-        // Check if a group option was selected
-        const fetchTeamId = team.startsWith('GROUP_') ? 'all' : team;
+        // Check if the selected team name matches one of our multi-team groups
+        const groupMap = {
+            'PMDG (All)': ['PMDD I', 'PMDD II', 'PMDD III', 'PMDD IV', 'PMDG (All)'],
+            'PMDG I': ['PMDD I', 'PMDD II', 'PMDG I'],
+            'PMDG II': ['PMDD III', 'PMDD IV', 'PMDG II'],
+            'RMFSG': ['FSD', 'RMCD', 'RMFSG'],
+            'OD': ['AOSD', 'TSCD', 'OD']
+        };
+        
+        const isGroup = Object.keys(groupMap).includes(teamName) && teamId !== 'all';
+        
+        // If it's a group, we tell the backend to fetch "all", then we filter locally
+        const fetchTeamId = isGroup ? 'all' : teamId;
         
         const res = await fetch(`/projects?team_id=${fetchTeamId}&status=${status}&showArchived=${isArchiveView}`);
         let fetchedProjects = await res.json();
 
-        // Perform local grouping filtering
-        if (team.startsWith('GROUP_')) {
-            const groupMap = {
-                'GROUP_PMDG_ALL': ['PMDD I', 'PMDD II', 'PMDD III', 'PMDD IV'],
-                'GROUP_PMDG_I': ['PMDD I', 'PMDD II'],
-                'GROUP_PMDG_II': ['PMDD III', 'PMDD IV'],
-                'GROUP_RMFSG': ['FSD', 'RMCD'],
-                'GROUP_OD': ['AOSD', 'TSCD']
-            };
-            const allowedTeams = groupMap[team];
-            
+        // Perform local grouping filtering if a group was selected
+        if (isGroup) {
+            const allowedTeams = groupMap[teamName];
             fetchedProjects = fetchedProjects.filter(p => {
                 return allowedTeams.includes(p.team_name) || 
                        (p.secondary_team && allowedTeams.some(t => p.secondary_team.includes(t)));
@@ -464,7 +464,10 @@
         allProjects = fetchedProjects;
         updateKPIs(allProjects);
         updateNotifications(allProjects);
-        renderTable(); updateChart(); renderHeatmap(); renderGantt();
+        renderTable(); 
+        updateChart(); 
+        renderHeatmap(); 
+        renderGantt();
     }
 
     function updateKPIs(projects) {
