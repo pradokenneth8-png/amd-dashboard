@@ -23,8 +23,9 @@
         @keyframes pulse-red { 0%, 100% { background-color: #fff; } 50% { background-color: #fee2e2; } }
         .delayed-alert { animation: pulse-red 2s infinite; border-left: 5px solid var(--amd-red) !important; }
         
-        optgroup { font-weight: 900; color: #000; font-style: italic; text-transform: uppercase; }
+        /* Removed optgroup styling since everything is now a clickable option */
         option { font-weight: 600; color: #333; font-style: normal; }
+        .font-main-team { font-weight: 800; color: #000; text-transform: uppercase; }
     </style>
 </head>
 <body class="bg-gray-100 text-black">
@@ -302,7 +303,6 @@
 </div>
 
 <script>
-    // --- UPDATED GLOBALS: Added currentFilteredProjects ---
     let statusChartInstance, heatmapChartInstance;
     let allProjects = [], currentFilteredProjects = [], allTeamsList = [];
     let currentPage = 1, currentUser = null, isLoginMode = true;
@@ -317,67 +317,90 @@
         document.getElementById('captcha-answer').value = '';
     }
 
+    // --- REBUILT: 100% CLICKABLE HIERARCHY ---
     function generateTeamGroupsHtml(teams, type) {
-        let groupedTeams = { 
-            "PMDG I": [], 
-            "PMDG II": [], 
-            "RMFSG": [], 
-            "OD": [], 
-            "Other Teams": [] 
-        };
-        
-        teams.forEach(t => {
-            const name = t.name.trim().toUpperCase();
-            if (name === "PMDG I" || name === "PMDD I" || name === "PMDD II") groupedTeams["PMDG I"].push(t);
-            else if (name === "PMDG II" || name === "PMDD III" || name === "PMDD IV") groupedTeams["PMDG II"].push(t);
-            else if (name === "RMFSG" || name === "FSD" || name === "RMCD") groupedTeams["RMFSG"].push(t);
-            else if (name === "OD" || name === "TSCD" || name === "AOSD") groupedTeams["OD"].push(t);
-            else groupedTeams["Other Teams"].push(t);
-        });
-
         let html = "";
         if (type === 'filter') html = '<option value="all">ALL TEAMS</option>';
         else if (type === 'register') html = '<option value="" disabled selected>Select your Team...</option>';
         else if (type === 'modal') html = '<option value="" disabled selected>Select Primary Team...</option>';
 
-        for (const [group, tList] of Object.entries(groupedTeams)) {
-            if (tList.length > 0) {
-                html += `<optgroup label="${group}">`;
-                tList.forEach(t => {
-                    html += `<option value="${t.id}">${t.name}</option>`;
-                });
-                html += `</optgroup>`;
+        // Define our desired visual structure
+        const hierarchy = [
+            { main: "ALL PMDG", subs: [] },
+            { main: "PMDG I", subs: ["PMDD I", "PMDD II"] },
+            { main: "PMDG II", subs: ["PMDD III", "PMDD IV"] },
+            { main: "RMFSG", subs: ["FSD", "RMCD"] },
+            { main: "OD", subs: ["TSCD", "AOSD"] }
+        ];
+
+        let processedIds = new Set();
+
+        hierarchy.forEach(group => {
+            // Find and render the main overarching team
+            let mainTeam = teams.find(t => t.name.trim().toUpperCase() === group.main);
+            if (mainTeam) {
+                html += `<option value="${mainTeam.id}" class="font-main-team">⭐ ${mainTeam.name}</option>`;
+                processedIds.add(mainTeam.id);
             }
+            
+            // Find and render the sub-teams underneath it
+            group.subs.forEach(subName => {
+                let subTeam = teams.find(t => t.name.trim().toUpperCase() === subName);
+                if (subTeam) {
+                    // Non-breaking spaces and an arrow create the "nested" look while keeping it clickable
+                    html += `<option value="${subTeam.id}">&nbsp;&nbsp;&nbsp;↳ ${subTeam.name}</option>`;
+                    processedIds.add(subTeam.id);
+                }
+            });
+        });
+
+        // Add any remaining teams that weren't in our hardcoded hierarchy
+        const otherTeams = teams.filter(t => !processedIds.has(t.id));
+        if (otherTeams.length > 0) {
+            html += `<option disabled>──────────</option>`;
+            otherTeams.forEach(t => {
+                html += `<option value="${t.id}">${t.name}</option>`;
+            });
         }
+
         return html;
     }
 
+    // Apply the same clickable hierarchy logic to the checkboxes
     function generateTeamCheckboxesHtml(teams) {
-        let groupedTeams = { 
-            "PMDG I": [], 
-            "PMDG II": [], 
-            "RMFSG": [], 
-            "OD": [], 
-            "Other Teams": [] 
-        };
-        
-        teams.forEach(t => {
-            const name = t.name.trim().toUpperCase();
-            if (name === "PMDG I" || name === "PMDD I" || name === "PMDD II") groupedTeams["PMDG I"].push(t);
-            else if (name === "PMDG II" || name === "PMDD III" || name === "PMDD IV") groupedTeams["PMDG II"].push(t);
-            else if (name === "RMFSG" || name === "FSD" || name === "RMCD") groupedTeams["RMFSG"].push(t);
-            else if (name === "OD" || name === "TSCD" || name === "AOSD") groupedTeams["OD"].push(t);
-            else groupedTeams["Other Teams"].push(t);
+        let html = "";
+        const hierarchy = [
+            { main: "ALL PMDG", subs: [] },
+            { main: "PMDG I", subs: ["PMDD I", "PMDD II"] },
+            { main: "PMDG II", subs: ["PMDD III", "PMDD IV"] },
+            { main: "RMFSG", subs: ["FSD", "RMCD"] },
+            { main: "OD", subs: ["TSCD", "AOSD"] }
+        ];
+
+        let processedIds = new Set();
+
+        hierarchy.forEach(group => {
+            let mainTeam = teams.find(t => t.name.trim().toUpperCase() === group.main);
+            if (mainTeam) {
+                html += `<label class="col-span-2 flex items-center space-x-2 text-[11px] font-black uppercase p-1 hover:bg-gray-200 rounded cursor-pointer text-blue-800 mt-1"><input type="checkbox" value="${mainTeam.name}" class="add-team-cb"><span>⭐ ${mainTeam.name}</span></label>`;
+                processedIds.add(mainTeam.id);
+            }
+            
+            group.subs.forEach(subName => {
+                let subTeam = teams.find(t => t.name.trim().toUpperCase() === subName);
+                if (subTeam) {
+                    html += `<label class="flex items-center space-x-2 text-[10px] font-bold p-1 hover:bg-gray-200 rounded cursor-pointer text-black ml-4"><input type="checkbox" value="${subTeam.name}" class="add-team-cb"><span>↳ ${subTeam.name}</span></label>`;
+                    processedIds.add(subTeam.id);
+                }
+            });
         });
 
-        let html = "";
-        for (const [group, tList] of Object.entries(groupedTeams)) {
-            if (tList.length > 0) {
-                html += `<div class="col-span-2 border-b border-gray-300 mt-2 mb-1 pb-1 text-[10px] text-gray-500 font-black uppercase tracking-wider">${group}</div>`;
-                tList.forEach(t => {
-                    html += `<label class="flex items-center space-x-2 text-[10px] font-bold p-1 hover:bg-gray-200 rounded cursor-pointer text-black"><input type="checkbox" value="${t.name}" class="add-team-cb"><span class="text-black">${t.name}</span></label>`;
-                });
-            }
+        const otherTeams = teams.filter(t => !processedIds.has(t.id));
+        if (otherTeams.length > 0) {
+            html += `<div class="col-span-2 border-t border-gray-300 mt-2 mb-1"></div>`;
+            otherTeams.forEach(t => {
+                html += `<label class="flex items-center space-x-2 text-[10px] font-bold p-1 hover:bg-gray-200 rounded cursor-pointer text-black"><input type="checkbox" value="${t.name}" class="add-team-cb"><span>${t.name}</span></label>`;
+            });
         }
         return html;
     }
@@ -500,12 +523,9 @@
 
     generateCaptcha();
 
-    // --- NEW: SMART DATA LOADING ---
     async function loadData() {
         const status = document.getElementById('statusFilter').value;
         
-        // Notice we explicitly ask the backend for "all" teams.
-        // We will do the Smart Filtering in the browser instead.
         const res = await fetch(`/projects?team_id=all&status=${status}&showArchived=${isArchiveView}`);
         allProjects = await res.json();
         
@@ -513,24 +533,20 @@
         applyLocalFilters();
     }
 
-    // --- NEW: CASCADING SMART FILTER ---
+    // --- CASCADING SMART FILTER LOGIC ---
     function applyLocalFilters() {
         const teamFilterValue = document.getElementById('teamFilter').value;
         const timeFilter = document.getElementById('timeFilter').value;
         const sortOrder = document.getElementById('sortOrder').value;
         const today = new Date(); today.setHours(0,0,0,0);
         
-        // Get the exact name of the selected team filter
         let selectedTeamName = "all";
         if (teamFilterValue !== "all") {
             const selectedObj = allTeamsList.find(t => t.id == teamFilterValue);
             if (selectedObj) selectedTeamName = selectedObj.name.trim().toUpperCase();
         }
 
-        // Apply filters locally
         currentFilteredProjects = allProjects.filter(p => {
-            
-            // 1. Time Filter Check
             const endDate = new Date(p.end_date);
             if (timeFilter === 'overdue' && (endDate >= today || p.status === 'Completed')) return false;
             if (timeFilter === 'month' && (endDate.getMonth() !== today.getMonth() || endDate.getFullYear() !== today.getFullYear())) return false;
@@ -539,7 +555,7 @@
                 if (endDate < today || endDate > nextWeek) return false;
             }
 
-            // 2. SMART TEAM FILTER Check (This does the grouping!)
+            // SMART FILTERING
             if (selectedTeamName !== "all") {
                 const pTeam = p.team_name.trim().toUpperCase();
                 let match = false;
@@ -555,7 +571,6 @@
                 } else if (selectedTeamName === "OD") {
                     match = ["OD", "TSCD", "AOSD"].includes(pTeam);
                 } else {
-                    // Exact match for sub-departments (like PMDD I isolated)
                     match = (pTeam === selectedTeamName);
                 }
                 
@@ -565,13 +580,9 @@
             return true;
         });
 
-        // 3. Apply Alphabetical Sorting
         currentFilteredProjects.sort((a, b) => sortOrder === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
-
-        // 4. Reset Pagination to page 1
         currentPage = 1;
 
-        // 5. Update EVERYTHING on the dashboard instantly
         updateKPIs(currentFilteredProjects);
         updateNotifications(currentFilteredProjects);
         updateChart(currentFilteredProjects);
@@ -626,7 +637,6 @@
         const start = (currentPage - 1) * 10;
         const today = new Date(); today.setHours(0,0,0,0);
         
-        // Look at currentFilteredProjects instead of doing the filtering here!
         const paginated = currentFilteredProjects.slice(start, start + 10);
         
         document.getElementById('project-list-rows').innerHTML = paginated.map(p => {
@@ -813,7 +823,6 @@
         }
     }
 
-    // CHANGED TO USE currentFilteredProjects
     function exportToPDF() {
         const { jsPDF } = window.jspdf; const doc = new jsPDF();
         doc.setFontSize(18); doc.setFont("helvetica", "bold"); doc.text("AMD STATUS REPORT", 14, 20);
@@ -821,7 +830,6 @@
         doc.save("AMD_Report.pdf");
     }
 
-    // CHANGED TO USE currentFilteredProjects
     function exportToExcel() {
         const dataToExport = currentFilteredProjects.map(p => ({
             'Project Name': p.name,
@@ -854,7 +862,6 @@
     function closeModal() { document.getElementById('modal').classList.add('hidden'); }
     function changePage(dir) { currentPage += dir; renderTable(); }
 
-    // --- ADMIN USER MANAGEMENT FUNCTIONS ---
     async function openUsersModal() {
         await loadUsers();
         document.getElementById('users-modal').classList.remove('hidden');
@@ -892,7 +899,7 @@
     async function approveUser(id) {
         if (confirm("Approve this user and grant them access to the portal?")) {
             await fetch(`/users/${id}/approve`, { method: 'PUT' });
-            loadUsers(); // Refresh the list to remove the yellow badge
+            loadUsers(); 
         }
     }
 
