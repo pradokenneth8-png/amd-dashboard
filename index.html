@@ -22,9 +22,6 @@
         #main-app { display: none; }
         @keyframes pulse-red { 0%, 100% { background-color: #fff; } 50% { background-color: #fee2e2; } }
         .delayed-alert { animation: pulse-red 2s infinite; border-left: 5px solid var(--amd-red) !important; }
-        
-        option { font-weight: 600; color: #333; font-style: normal; }
-        .font-main-team { font-weight: 800; color: #000; text-transform: uppercase; }
     </style>
 </head>
 <body class="bg-gray-100 text-black">
@@ -37,7 +34,8 @@
             
             <input type="email" id="reg-email" placeholder="Email Address" class="hidden w-full p-3 border rounded-lg bg-gray-50 text-sm text-black">
             <select id="reg-team" class="hidden w-full p-3 border rounded-lg bg-gray-50 text-sm text-black">
-                </select>
+                <option value="">Select your Team...</option>
+            </select>
 
             <input type="password" id="password" placeholder="Password" class="w-full p-3 border rounded-lg bg-gray-50 text-sm text-black">
             
@@ -74,7 +72,7 @@
             <div class="flex flex-col lg:flex-row gap-4 w-full xl:w-auto xl:justify-end items-center">
                 
                 <div class="flex flex-wrap justify-center gap-2 border-b lg:border-b-0 lg:border-r border-gray-700 pb-3 lg:pb-0 lg:pr-4">
-                    <select id="timeFilter" onchange="applyLocalFilters()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold text-yellow-400">
+                    <select id="timeFilter" onchange="renderTable()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold text-yellow-400">
                         <option value="all">ALL DATES</option>
                         <option value="overdue">⚠️ OVERDUE</option>
                         <option value="week">DUE NEXT 7 DAYS</option>
@@ -88,10 +86,20 @@
                         <option value="Completed">COMPLETED</option>
                     </select>
                     
-                    <select id="teamFilter" onchange="applyLocalFilters()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold">
-                        </select>
+                    <select id="teamFilter" onchange="loadData()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold">
+                        <option value="all">ALL TEAMS</option>
+                        <optgroup label="Divisions / Groups">
+                            <option value="GROUP_PMDG_ALL">PMDG (All)</option>
+                            <option value="GROUP_PMDG_I">PMDG I</option>
+                            <option value="GROUP_PMDG_II">PMDG II</option>
+                            <option value="GROUP_RMFSG">RMFSG</option>
+                            <option value="GROUP_OD">OD</option>
+                        </optgroup>
+                        <optgroup label="Individual Teams" id="individual-teams">
+                        </optgroup>
+                    </select>
                     
-                    <select id="sortOrder" onchange="applyLocalFilters()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold">
+                    <select id="sortOrder" onchange="renderTable()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold">
                         <option value="asc">SORT A-Z</option>
                         <option value="desc">SORT Z-A</option>
                     </select>
@@ -213,13 +221,11 @@
                 <input type="text" id="name" placeholder="Project Name" class="w-full p-2 border rounded bg-gray-50 text-sm font-bold text-black" required>
                 <div class="space-y-1 border-t pt-2">
                     <label class="text-[10px] font-bold text-black uppercase">Primary Team</label>
-                    <select id="team_id" class="w-full p-2 border rounded bg-gray-50 text-sm text-black" required>
-                        </select>
+                    <select id="team_id" class="w-full p-2 border rounded bg-gray-50 text-sm text-black"></select>
                 </div>
                 <div class="space-y-1">
                     <label class="text-[10px] font-bold text-black uppercase">Additional Teams</label>
-                    <div id="additionalTeamsContainer" class="bg-gray-50 p-2 border rounded grid grid-cols-2 gap-2 max-h-48 overflow-y-auto text-black">
-                        </div>
+                    <div id="additionalTeamsContainer" class="bg-gray-50 p-2 border rounded grid grid-cols-2 gap-2 max-h-24 overflow-y-auto text-black"></div>
                 </div>
                 <div class="grid grid-cols-2 gap-4 border-t pt-2">
                     <div class="space-y-1">
@@ -275,6 +281,7 @@
         </div>
     </div>
 
+    <!-- Admin User Management Modal -->
     <div id="users-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-[60]">
         <div class="bg-white rounded-2xl p-6 max-w-3xl w-full max-h-[80vh] flex flex-col text-sm shadow-2xl">
             <div class="flex justify-between items-center mb-4">
@@ -302,9 +309,7 @@
 </div>
 
 <script>
-    let statusChartInstance, heatmapChartInstance;
-    let allProjects = [], currentFilteredProjects = [], allTeamsList = [];
-    let currentPage = 1, currentUser = null, isLoginMode = true;
+    let statusChartInstance, heatmapChartInstance, allProjects = [], allTeamsList = [], currentPage = 1, currentUser = null, isLoginMode = true;
     let currentUserRole = 'editor'; 
     let isArchiveView = false; 
     let captchaNum1, captchaNum2;
@@ -316,94 +321,11 @@
         document.getElementById('captcha-answer').value = '';
     }
 
-    function generateTeamGroupsHtml(teams, type) {
-        let html = "";
-        if (type === 'filter') html = '<option value="all">ALL TEAMS</option>';
-        else if (type === 'register') html = '<option value="" disabled selected>Select your Team...</option>';
-        else if (type === 'modal') html = '<option value="" disabled selected>Select Primary Team...</option>';
-
-        // FIXED: Using "PMDG (ALL)" to exactly match your database.
-        const hierarchy = [
-            { main: "PMDG (ALL)", subs: [] },
-            { main: "PMDG I", subs: ["PMDD I", "PMDD II"] },
-            { main: "PMDG II", subs: ["PMDD III", "PMDD IV"] },
-            { main: "RMFSG", subs: ["FSD", "RMCD"] },
-            { main: "OD", subs: ["TSCD", "AOSD"] }
-        ];
-
-        let processedIds = new Set();
-
-        hierarchy.forEach(group => {
-            let mainTeam = teams.find(t => t.name.trim().toUpperCase() === group.main);
-            if (mainTeam) {
-                html += `<option value="${mainTeam.id}" class="font-main-team">⭐ ${mainTeam.name}</option>`;
-                processedIds.add(mainTeam.id);
-            }
-            
-            group.subs.forEach(subName => {
-                let subTeam = teams.find(t => t.name.trim().toUpperCase() === subName);
-                if (subTeam) {
-                    html += `<option value="${subTeam.id}">&nbsp;&nbsp;&nbsp;↳ ${subTeam.name}</option>`;
-                    processedIds.add(subTeam.id);
-                }
-            });
-        });
-
-        const otherTeams = teams.filter(t => !processedIds.has(t.id));
-        if (otherTeams.length > 0) {
-            html += `<option disabled>──────────</option>`;
-            otherTeams.forEach(t => {
-                html += `<option value="${t.id}">${t.name}</option>`;
-            });
-        }
-
-        return html;
-    }
-
-    function generateTeamCheckboxesHtml(teams) {
-        let html = "";
-        // FIXED: Using "PMDG (ALL)"
-        const hierarchy = [
-            { main: "PMDG (ALL)", subs: [] },
-            { main: "PMDG I", subs: ["PMDD I", "PMDD II"] },
-            { main: "PMDG II", subs: ["PMDD III", "PMDD IV"] },
-            { main: "RMFSG", subs: ["FSD", "RMCD"] },
-            { main: "OD", subs: ["TSCD", "AOSD"] }
-        ];
-
-        let processedIds = new Set();
-
-        hierarchy.forEach(group => {
-            let mainTeam = teams.find(t => t.name.trim().toUpperCase() === group.main);
-            if (mainTeam) {
-                html += `<label class="col-span-2 flex items-center space-x-2 text-[11px] font-black uppercase p-1 hover:bg-gray-200 rounded cursor-pointer text-blue-800 mt-1"><input type="checkbox" value="${mainTeam.name}" class="add-team-cb"><span>⭐ ${mainTeam.name}</span></label>`;
-                processedIds.add(mainTeam.id);
-            }
-            
-            group.subs.forEach(subName => {
-                let subTeam = teams.find(t => t.name.trim().toUpperCase() === subName);
-                if (subTeam) {
-                    html += `<label class="flex items-center space-x-2 text-[10px] font-bold p-1 hover:bg-gray-200 rounded cursor-pointer text-black ml-4"><input type="checkbox" value="${subTeam.name}" class="add-team-cb"><span>↳ ${subTeam.name}</span></label>`;
-                    processedIds.add(subTeam.id);
-                }
-            });
-        });
-
-        const otherTeams = teams.filter(t => !processedIds.has(t.id));
-        if (otherTeams.length > 0) {
-            html += `<div class="col-span-2 border-t border-gray-300 mt-2 mb-1"></div>`;
-            otherTeams.forEach(t => {
-                html += `<label class="flex items-center space-x-2 text-[10px] font-bold p-1 hover:bg-gray-200 rounded cursor-pointer text-black"><input type="checkbox" value="${t.name}" class="add-team-cb"><span>${t.name}</span></label>`;
-            });
-        }
-        return html;
-    }
-
     async function preLoadTeams() {
         try {
             const res = await fetch('/teams');
             const teams = await res.json();
-            document.getElementById('reg-team').innerHTML = generateTeamGroupsHtml(teams, 'register');
+            document.getElementById('reg-team').innerHTML += teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
         } catch(e) { console.error("Could not load teams for registration", e); }
     }
     preLoadTeams();
@@ -518,69 +440,36 @@
     generateCaptcha();
 
     async function loadData() {
+        const team = document.getElementById('teamFilter').value;
         const status = document.getElementById('statusFilter').value;
         
-        const res = await fetch(`/projects?team_id=all&status=${status}&showArchived=${isArchiveView}`);
-        allProjects = await res.json();
+        // Check if a group option was selected
+        const fetchTeamId = team.startsWith('GROUP_') ? 'all' : team;
         
-        applyLocalFilters();
-    }
+        const res = await fetch(`/projects?team_id=${fetchTeamId}&status=${status}&showArchived=${isArchiveView}`);
+        let fetchedProjects = await res.json();
 
-    function applyLocalFilters() {
-        const teamFilterValue = document.getElementById('teamFilter').value;
-        const timeFilter = document.getElementById('timeFilter').value;
-        const sortOrder = document.getElementById('sortOrder').value;
-        const today = new Date(); today.setHours(0,0,0,0);
-        
-        let selectedTeamName = "all";
-        if (teamFilterValue !== "all") {
-            const selectedObj = allTeamsList.find(t => t.id == teamFilterValue);
-            if (selectedObj) selectedTeamName = selectedObj.name.trim().toUpperCase();
+        // Perform local grouping filtering
+        if (team.startsWith('GROUP_')) {
+            const groupMap = {
+                'GROUP_PMDG_ALL': ['PMDD I', 'PMDD II', 'PMDD III', 'PMDD IV'],
+                'GROUP_PMDG_I': ['PMDD I', 'PMDD II'],
+                'GROUP_PMDG_II': ['PMDD III', 'PMDD IV'],
+                'GROUP_RMFSG': ['FSD', 'RMCD'],
+                'GROUP_OD': ['AOSD', 'TSCD']
+            };
+            const allowedTeams = groupMap[team];
+            
+            fetchedProjects = fetchedProjects.filter(p => {
+                return allowedTeams.includes(p.team_name) || 
+                       (p.secondary_team && allowedTeams.some(t => p.secondary_team.includes(t)));
+            });
         }
 
-        currentFilteredProjects = allProjects.filter(p => {
-            const endDate = new Date(p.end_date);
-            if (timeFilter === 'overdue' && (endDate >= today || p.status === 'Completed')) return false;
-            if (timeFilter === 'month' && (endDate.getMonth() !== today.getMonth() || endDate.getFullYear() !== today.getFullYear())) return false;
-            if (timeFilter === 'week') {
-                const nextWeek = new Date(today); nextWeek.setDate(today.getDate() + 7);
-                if (endDate < today || endDate > nextWeek) return false;
-            }
-
-            if (selectedTeamName !== "all") {
-                const pTeam = p.team_name.trim().toUpperCase();
-                let match = false;
-                
-                // FIXED: Looking precisely for "PMDG (ALL)" to trigger the full group
-                if (selectedTeamName === "PMDG (ALL)") {
-                    match = ["PMDG (ALL)", "PMDG I", "PMDG II", "PMDD I", "PMDD II", "PMDD III", "PMDD IV"].includes(pTeam);
-                } else if (selectedTeamName === "PMDG I") {
-                    match = ["PMDG I", "PMDD I", "PMDD II"].includes(pTeam);
-                } else if (selectedTeamName === "PMDG II") {
-                    match = ["PMDG II", "PMDD III", "PMDD IV"].includes(pTeam);
-                } else if (selectedTeamName === "RMFSG") {
-                    match = ["RMFSG", "FSD", "RMCD"].includes(pTeam);
-                } else if (selectedTeamName === "OD") {
-                    match = ["OD", "TSCD", "AOSD"].includes(pTeam);
-                } else {
-                    match = (pTeam === selectedTeamName);
-                }
-                
-                if (!match) return false;
-            }
-
-            return true;
-        });
-
-        currentFilteredProjects.sort((a, b) => sortOrder === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
-        currentPage = 1;
-
-        updateKPIs(currentFilteredProjects);
-        updateNotifications(currentFilteredProjects);
-        updateChart(currentFilteredProjects);
-        renderHeatmap(currentFilteredProjects);
-        renderGantt(currentFilteredProjects);
-        renderTable(); 
+        allProjects = fetchedProjects;
+        updateKPIs(allProjects);
+        updateNotifications(allProjects);
+        renderTable(); updateChart(); renderHeatmap(); renderGantt();
     }
 
     function updateKPIs(projects) {
@@ -626,10 +515,22 @@
     }
 
     function renderTable() {
-        const start = (currentPage - 1) * 10;
+        const sortOrder = document.getElementById('sortOrder').value;
+        const timeFilter = document.getElementById('timeFilter').value;
         const today = new Date(); today.setHours(0,0,0,0);
-        
-        const paginated = currentFilteredProjects.slice(start, start + 10);
+        let filtered = allProjects.filter(p => {
+            const endDate = new Date(p.end_date);
+            if (timeFilter === 'overdue') return endDate < today && p.status !== 'Completed';
+            if (timeFilter === 'month') return endDate.getMonth() === today.getMonth() && endDate.getFullYear() === today.getFullYear();
+            if (timeFilter === 'week') {
+                const nextWeek = new Date(today); nextWeek.setDate(today.getDate() + 7);
+                return endDate >= today && endDate <= nextWeek;
+            }
+            return true;
+        });
+        filtered.sort((a, b) => sortOrder === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
+        const start = (currentPage - 1) * 10;
+        const paginated = filtered.slice(start, start + 10);
         
         document.getElementById('project-list-rows').innerHTML = paginated.map(p => {
             const overdue = new Date(p.end_date) < today && p.status !== 'Completed';
@@ -660,9 +561,8 @@
                 <td class="p-4 text-center">${actionButtons}</td>
             </tr>`;
         }).join('');
-        
         document.getElementById('pageInfo').innerText = `Page ${currentPage}`;
-        document.getElementById('nextBtn').disabled = start + 10 >= currentFilteredProjects.length;
+        document.getElementById('nextBtn').disabled = start + 10 >= filtered.length;
         document.getElementById('prevBtn').disabled = currentPage === 1;
     }
 
@@ -698,9 +598,9 @@
         }
     }
 
-    function updateChart(projects) {
+    function updateChart() {
         const counts = { 'On Track': 0, 'Delayed': 0, 'Completed': 0 };
-        projects.forEach(p => counts[p.status]++);
+        allProjects.forEach(p => counts[p.status]++);
         const ctx = document.getElementById('statusChart').getContext('2d');
         if (statusChartInstance) statusChartInstance.destroy();
         Chart.register(ChartDataLabels);
@@ -710,10 +610,10 @@
         });
     }
 
-    function renderHeatmap(projects) {
+    function renderHeatmap() {
         const teamData = {};
         allTeamsList.forEach(t => teamData[t.name] = { 'On Track': 0, 'Delayed': 0, 'Completed': 0 });
-        projects.forEach(p => { if(teamData[p.team_name]) teamData[p.team_name][p.status]++; });
+        allProjects.forEach(p => { if(teamData[p.team_name]) teamData[p.team_name][p.status]++; });
         const labels = Object.keys(teamData);
         const onTrack = labels.map(l => teamData[l]['On Track']);
         const delayed = labels.map(l => teamData[l]['Delayed']);
@@ -807,10 +707,10 @@
         } 
     }
 
-    function renderGantt(projects) {
+    function renderGantt() {
         const container = document.getElementById('gantt'); container.innerHTML = "";
-        if (projects.length > 0) {
-            const tasks = projects.map(p => ({ id: p.id.toString(), name: p.name, start: p.start_date.split('T')[0], end: p.end_date.split('T')[0], progress: p.progress }));
+        if (allProjects.length > 0) {
+            const tasks = allProjects.map(p => ({ id: p.id.toString(), name: p.name, start: p.start_date.split('T')[0], end: p.end_date.split('T')[0], progress: p.progress }));
             new Gantt("#gantt", tasks, { view_mode: 'Week', bar_height: 20 });
         }
     }
@@ -818,12 +718,12 @@
     function exportToPDF() {
         const { jsPDF } = window.jspdf; const doc = new jsPDF();
         doc.setFontSize(18); doc.setFont("helvetica", "bold"); doc.text("AMD STATUS REPORT", 14, 20);
-        doc.autoTable({ startY: 30, head: [['Project', 'Team', 'Status', 'Progress']], body: currentFilteredProjects.map(p => [p.name, p.team_name, p.status, p.progress + "%"]), headStyles: { fillColor: [237, 28, 36] } });
+        doc.autoTable({ startY: 30, head: [['Project', 'Team', 'Status', 'Progress']], body: allProjects.map(p => [p.name, p.team_name, p.status, p.progress + "%"]), headStyles: { fillColor: [237, 28, 36] } });
         doc.save("AMD_Report.pdf");
     }
 
     function exportToExcel() {
-        const dataToExport = currentFilteredProjects.map(p => ({
+        const dataToExport = allProjects.map(p => ({
             'Project Name': p.name,
             'Primary Team': p.team_name,
             'Additional Teams': p.secondary_team || '-',
@@ -840,13 +740,15 @@
     }
 
     async function init() {
-        const res = await fetch('/teams'); 
-        allTeamsList = await res.json();
+        const res = await fetch('/teams'); allTeamsList = await res.json();
+        const primary = allTeamsList.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+        document.getElementById('team_id').innerHTML = primary;
         
-        document.getElementById('team_id').innerHTML = generateTeamGroupsHtml(allTeamsList, 'modal');
-        document.getElementById('teamFilter').innerHTML = generateTeamGroupsHtml(allTeamsList, 'filter');
-        document.getElementById('additionalTeamsContainer').innerHTML = generateTeamCheckboxesHtml(allTeamsList);
-        
+        const individualTeamsSelect = document.getElementById('individual-teams');
+        if(individualTeamsSelect) individualTeamsSelect.innerHTML = primary;
+        else document.getElementById('teamFilter').innerHTML += primary;
+
+        document.getElementById('additionalTeamsContainer').innerHTML = allTeamsList.map(t => `<label class="flex items-center space-x-2 text-[10px] font-bold p-1 hover:bg-gray-200 rounded cursor-pointer text-black"><input type="checkbox" value="${t.name}" class="add-team-cb"><span class="text-black">${t.name}</span></label>`).join('');
         loadData();
     }
 
@@ -854,6 +756,7 @@
     function closeModal() { document.getElementById('modal').classList.add('hidden'); }
     function changePage(dir) { currentPage += dir; renderTable(); }
 
+    // --- ADMIN USER MANAGEMENT FUNCTIONS ---
     async function openUsersModal() {
         await loadUsers();
         document.getElementById('users-modal').classList.remove('hidden');
@@ -891,7 +794,7 @@
     async function approveUser(id) {
         if (confirm("Approve this user and grant them access to the portal?")) {
             await fetch(`/users/${id}/approve`, { method: 'PUT' });
-            loadUsers(); 
+            loadUsers(); // Refresh the list to remove the yellow badge
         }
     }
 
