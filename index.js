@@ -34,7 +34,7 @@ app.post('/login', async (req, res) => {
     if (result.rows.length > 0) {
       const user = result.rows[0];
       
-      // NEW: Block login if not approved by admin
+      // Block login if not approved by admin
       if (user.is_approved === false) {
           return res.status(401).json({ success: false, message: "Your account is still pending Admin approval." });
       }
@@ -50,31 +50,57 @@ app.post('/login', async (req, res) => {
 
 app.post('/register', async (req, res) => {
   try {
-    const { username, password, email, team_id } = req.body;
+    // NEW: Added isPreApproved flag
+    const { username, password, email, team_id, isPreApproved } = req.body;
     const check = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
     if (check.rows.length > 0) return res.status(400).json({ success: false, message: "Username taken" });
     
-    // NEW: Insert with is_approved set to FALSE explicitly
+    // NEW: If Admin creates them, automatically set is_approved to TRUE
+    const approvedStatus = isPreApproved ? true : false;
+    
     await pool.query(
-        'INSERT INTO users (username, password, email, team_id, is_approved) VALUES ($1, $2, $3, $4, FALSE)', 
-        [username, password, email || null, team_id || null]
+        'INSERT INTO users (username, password, email, team_id, is_approved) VALUES ($1, $2, $3, $4, $5)', 
+        [username, password, email || null, team_id || null, approvedStatus]
     );
 
-    // Send "Pending" Email instead of Welcome email
+    // Send the appropriate Email
     if (email) {
-        const mailOptions = {
-            from: '"AMD Portal" <amdteam.noreply@gmail.com>',
-            to: email,
-            subject: 'AMD Portal - Registration Received',
-            html: `
-                <div style="font-family: sans-serif; padding: 20px;">
-                    <h2 style="color: #ED1C24; font-style: italic;">REGISTRATION PENDING</h2>
-                    <p>Hello <strong>${username}</strong>,</p>
-                    <p>Your account request has been received. It is currently locked pending Administrator approval.</p>
-                    <p>You will receive another email once your access has been granted.</p>
-                </div>
-            `
-        };
+        let mailOptions;
+        
+        if (isPreApproved) {
+            // Email for Admin-Created Users
+            mailOptions = {
+                from: '"AMD Portal" <amdteam.noreply@gmail.com>',
+                to: email,
+                subject: 'AMD Portal - Account Pre-Registered',
+                html: `
+                    <div style="font-family: sans-serif; padding: 20px;">
+                        <h2 style="color: #10B981; font-style: italic;">ACCOUNT CREATED</h2>
+                        <p>Hello <strong>${username}</strong>,</p>
+                        <p>An Administrator has pre-registered an account for you on the AMD Enterprise Portal.</p>
+                        <p>Your default temporary password is:</p>
+                        <h3 style="background: #eee; padding: 10px; display: inline-block; letter-spacing: 1px;">${password}</h3>
+                        <p>Please log in to the portal. <strong>You will be required to change this password immediately upon your first login.</strong></p>
+                    </div>
+                `
+            };
+        } else {
+            // Standard Pending Email for Self-Registration
+            mailOptions = {
+                from: '"AMD Portal" <amdteam.noreply@gmail.com>',
+                to: email,
+                subject: 'AMD Portal - Registration Received',
+                html: `
+                    <div style="font-family: sans-serif; padding: 20px;">
+                        <h2 style="color: #ED1C24; font-style: italic;">REGISTRATION PENDING</h2>
+                        <p>Hello <strong>${username}</strong>,</p>
+                        <p>Your account request has been received. It is currently locked pending Administrator approval.</p>
+                        <p>You will receive another email once your access has been granted.</p>
+                    </div>
+                `
+            };
+        }
+        
         transporter.sendMail(mailOptions, (error) => { if(error) console.error(error); });
     }
 
@@ -144,7 +170,6 @@ app.get('/users', async (req, res) => {
   } catch (err) { res.status(500).send(err.message); }
 });
 
-// NEW: Approve User Route
 app.put('/users/:id/approve', async (req, res) => {
     try {
         const userId = req.params.id;

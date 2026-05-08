@@ -88,7 +88,7 @@
                     
                     <select id="teamFilter" onchange="loadData()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold">
                         <option value="all">ALL TEAMS</option>
-                    </select>
+                        </select>
                     
                     <select id="sortOrder" onchange="renderTable()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] font-bold">
                         <option value="asc">SORT A-Z</option>
@@ -184,14 +184,34 @@
         </div>
     </main>
 
-    <div id="change-pw-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-[70]">
+    <div id="change-pw-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-[120]">
         <div class="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
-            <h2 class="text-lg font-black italic uppercase mb-4 text-black border-b pb-2">Change Password</h2>
+            <h2 id="pw-modal-title" class="text-lg font-black italic uppercase mb-4 text-black border-b pb-2">Change Password</h2>
             <form id="changePwForm" class="space-y-4">
                 <input type="password" id="old-pw" placeholder="Current Password" class="w-full p-3 border rounded bg-gray-50 text-sm text-black" required>
                 <input type="password" id="new-pw" placeholder="New Password" class="w-full p-3 border rounded bg-gray-50 text-sm text-black" required>
                 <button type="submit" class="w-full bg-black text-white py-3 rounded-lg font-bold text-xs uppercase hover:bg-gray-800 transition">Update Password</button>
-                <button type="button" onclick="closeChangePasswordModal()" class="w-full mt-2 text-black font-bold text-xs uppercase hover:underline">Cancel</button>
+                <button type="button" id="cancel-pw-btn" onclick="closeChangePasswordModal()" class="w-full mt-2 text-black font-bold text-xs uppercase hover:underline">Cancel</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="add-user-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-[80]">
+        <div class="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+            <h2 class="text-lg font-black italic uppercase mb-4 text-black border-b pb-2">Register Member</h2>
+            <form id="addUserForm" class="space-y-4">
+                <input type="text" id="add-user-username" placeholder="Username" class="w-full p-3 border rounded bg-gray-50 text-sm text-black" required>
+                <input type="email" id="add-user-email" placeholder="Email Address" class="w-full p-3 border rounded bg-gray-50 text-sm text-black" required>
+                <select id="add-user-team" class="w-full p-3 border rounded bg-gray-50 text-sm text-black" required>
+                    <option value="">Select Team...</option>
+                </select>
+                <div class="bg-blue-50 p-3 rounded border border-blue-200">
+                    <p class="text-[10px] font-bold text-blue-800 uppercase">Default Password:</p>
+                    <p class="text-sm font-black text-blue-900">Welcome123!</p>
+                    <p class="text-[9px] text-blue-700 italic mt-1">User will be forced to change this upon first login.</p>
+                </div>
+                <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg font-bold text-xs uppercase shadow-lg hover:bg-blue-700 transition">Create Pre-Approved User</button>
+                <button type="button" onclick="closeAddUserModal()" class="w-full mt-2 text-black font-bold text-xs uppercase hover:underline">Cancel</button>
             </form>
         </div>
     </div>
@@ -276,7 +296,10 @@
         <div class="bg-white rounded-2xl p-6 max-w-3xl w-full max-h-[80vh] flex flex-col text-sm shadow-2xl">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-xl font-black italic uppercase text-black">Manage Users</h2>
-                <button onclick="closeUsersModal()" class="text-black hover:text-red-500 font-bold text-lg">✕</button>
+                <div class="flex gap-2">
+                    <button onclick="openAddUserModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded font-bold text-xs uppercase shadow transition">+ Add Member</button>
+                    <button onclick="closeUsersModal()" class="text-black hover:text-red-500 font-bold text-lg px-2">✕</button>
+                </div>
             </div>
             <div class="overflow-y-auto flex-grow border rounded-lg">
                 <table class="w-full text-left text-xs">
@@ -291,9 +314,6 @@
                     <tbody id="users-rows" class="divide-y divide-gray-100"></tbody>
                 </table>
             </div>
-            <div class="mt-4 flex justify-end">
-                <button onclick="closeUsersModal()" class="bg-gray-200 hover:bg-gray-300 text-black px-4 py-2 rounded font-bold text-xs uppercase transition">Close</button>
-            </div>
         </div>
     </div>
 </div>
@@ -303,6 +323,7 @@
     let currentUserRole = 'editor'; 
     let isArchiveView = false; 
     let captchaNum1, captchaNum2;
+    let isForceResetMode = false;
 
     function generateCaptcha() {
         captchaNum1 = Math.floor(Math.random() * 10) + 1;
@@ -333,6 +354,22 @@
         generateCaptcha();
     }
 
+    // Function to unlock the dashboard ONLY after successful login and password validation
+    function unlockDashboard() {
+        document.getElementById('login-page').style.display='none'; 
+        document.getElementById('main-app').style.display='block'; 
+        
+        if(currentUserRole === 'admin') {
+            document.getElementById('admin-clear-btn').classList.remove('hidden');
+            document.getElementById('admin-users-btn').classList.remove('hidden'); 
+        }
+
+        const newBtn = document.getElementById('header-new-btn');
+        if(newBtn) newBtn.style.display = 'inline-block';
+        
+        init(); 
+    }
+
     async function handleAuth() {
         const userAnswer = parseInt(document.getElementById('captcha-answer').value);
         if (userAnswer !== (captchaNum1 + captchaNum2)) { alert("Captcha Failed"); generateCaptcha(); return; }
@@ -359,18 +396,12 @@
                 currentUser = data.username; 
                 currentUserRole = data.role || 'editor'; 
                 
-                document.getElementById('login-page').style.display='none'; 
-                document.getElementById('main-app').style.display='block'; 
-                
-                if(currentUserRole === 'admin') {
-                    document.getElementById('admin-clear-btn').classList.remove('hidden');
-                    document.getElementById('admin-users-btn').classList.remove('hidden'); 
+                // TRAP DOOR: If password is the default "Welcome123!" force reset over login screen
+                if (password === 'Welcome123!') {
+                    openChangePasswordModal(true); // pass true for forced mode
+                } else {
+                    unlockDashboard();
                 }
-
-                const newBtn = document.getElementById('header-new-btn');
-                if(newBtn) newBtn.style.display = 'inline-block';
-                
-                init(); 
             }
         } else { alert(data.message); generateCaptcha(); }
     }
@@ -390,12 +421,23 @@
         }
     }
 
-    function openChangePasswordModal() {
+    function openChangePasswordModal(force = false) {
+        isForceResetMode = force;
         document.getElementById('changePwForm').reset();
+        
+        if (force) {
+            document.getElementById('pw-modal-title').innerText = "Action Required: Set New Password";
+            document.getElementById('cancel-pw-btn').classList.add('hidden');
+        } else {
+            document.getElementById('pw-modal-title').innerText = "Change Password";
+            document.getElementById('cancel-pw-btn').classList.remove('hidden');
+        }
+        
         document.getElementById('change-pw-modal').classList.remove('hidden');
     }
 
     function closeChangePasswordModal() {
+        if (isForceResetMode) return; // Prevent closing if forced
         document.getElementById('change-pw-modal').classList.add('hidden');
     }
 
@@ -411,7 +453,14 @@
         });
         const data = await res.json();
         alert(data.message);
-        if (data.success) closeChangePasswordModal();
+        
+        if (data.success) {
+            document.getElementById('change-pw-modal').classList.add('hidden');
+            if (isForceResetMode) {
+                isForceResetMode = false;
+                unlockDashboard(); // Password successfully changed, unlock the portal!
+            }
+        }
     });
 
     async function handleLogout() {
@@ -740,9 +789,9 @@
     async function init() {
         const res = await fetch('/teams'); allTeamsList = await res.json();
         const primary = allTeamsList.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
-        document.getElementById('team_id').innerHTML = primary;
         
-        document.getElementById('teamFilter').innerHTML += primary;
+        document.getElementById('team_id').innerHTML = primary;
+        document.getElementById('teamFilter').innerHTML = '<option value="all">ALL TEAMS</option>' + primary;
 
         document.getElementById('additionalTeamsContainer').innerHTML = allTeamsList.map(t => `<label class="flex items-center space-x-2 text-[10px] font-bold p-1 hover:bg-gray-200 rounded cursor-pointer text-black"><input type="checkbox" value="${t.name}" class="add-team-cb"><span class="text-black">${t.name}</span></label>`).join('');
         loadData();
@@ -761,6 +810,42 @@
     function closeUsersModal() {
         document.getElementById('users-modal').classList.add('hidden');
     }
+
+    function openAddUserModal() {
+        document.getElementById('addUserForm').reset();
+        document.getElementById('add-user-team').innerHTML = `<option value="">Select Team...</option>` + allTeamsList.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+        document.getElementById('add-user-modal').classList.remove('hidden');
+    }
+
+    function closeAddUserModal() {
+        document.getElementById('add-user-modal').classList.add('hidden');
+    }
+
+    // Handles the form submission when an admin manually registers someone
+    document.getElementById('addUserForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = document.getElementById('add-user-username').value;
+        const email = document.getElementById('add-user-email').value;
+        const team_id = document.getElementById('add-user-team').value;
+
+        // NEW: We pass isPreApproved: true so the backend automatically approves them
+        // and sends the specific "Pre-Registered" email.
+        const res = await fetch('/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, email, team_id, password: 'Welcome123!', isPreApproved: true })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+            // Updated alert text since the admin no longer needs to manually click "Approve"
+            alert(`User successfully added and pre-approved!\n\nAn email has been sent to them with their default password.`);
+            closeAddUserModal();
+            loadUsers(); // Refresh the grid to show them as active
+        } else {
+            alert(data.message || "Failed to create user.");
+        }
+    });
 
     async function loadUsers() {
         const res = await fetch('/users');
