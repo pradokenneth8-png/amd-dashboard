@@ -23,7 +23,6 @@
         @keyframes pulse-red { 0%, 100% { background-color: #fff; } 50% { background-color: #fee2e2; } }
         .delayed-alert { animation: pulse-red 2s infinite; border-left: 5px solid var(--amd-red) !important; }
         
-        /* Removed optgroup styling since everything is now a clickable option */
         option { font-weight: 600; color: #333; font-style: normal; }
         .font-main-team { font-weight: 800; color: #000; text-transform: uppercase; }
     </style>
@@ -317,16 +316,15 @@
         document.getElementById('captcha-answer').value = '';
     }
 
-    // --- REBUILT: 100% CLICKABLE HIERARCHY ---
     function generateTeamGroupsHtml(teams, type) {
         let html = "";
         if (type === 'filter') html = '<option value="all">ALL TEAMS</option>';
         else if (type === 'register') html = '<option value="" disabled selected>Select your Team...</option>';
         else if (type === 'modal') html = '<option value="" disabled selected>Select Primary Team...</option>';
 
-        // Define our desired visual structure
+        // FIXED: Using "PMDG (ALL)" to exactly match your database.
         const hierarchy = [
-            { main: "ALL PMDG", subs: [] },
+            { main: "PMDG (ALL)", subs: [] },
             { main: "PMDG I", subs: ["PMDD I", "PMDD II"] },
             { main: "PMDG II", subs: ["PMDD III", "PMDD IV"] },
             { main: "RMFSG", subs: ["FSD", "RMCD"] },
@@ -336,25 +334,21 @@
         let processedIds = new Set();
 
         hierarchy.forEach(group => {
-            // Find and render the main overarching team
             let mainTeam = teams.find(t => t.name.trim().toUpperCase() === group.main);
             if (mainTeam) {
                 html += `<option value="${mainTeam.id}" class="font-main-team">⭐ ${mainTeam.name}</option>`;
                 processedIds.add(mainTeam.id);
             }
             
-            // Find and render the sub-teams underneath it
             group.subs.forEach(subName => {
                 let subTeam = teams.find(t => t.name.trim().toUpperCase() === subName);
                 if (subTeam) {
-                    // Non-breaking spaces and an arrow create the "nested" look while keeping it clickable
                     html += `<option value="${subTeam.id}">&nbsp;&nbsp;&nbsp;↳ ${subTeam.name}</option>`;
                     processedIds.add(subTeam.id);
                 }
             });
         });
 
-        // Add any remaining teams that weren't in our hardcoded hierarchy
         const otherTeams = teams.filter(t => !processedIds.has(t.id));
         if (otherTeams.length > 0) {
             html += `<option disabled>──────────</option>`;
@@ -366,11 +360,11 @@
         return html;
     }
 
-    // Apply the same clickable hierarchy logic to the checkboxes
     function generateTeamCheckboxesHtml(teams) {
         let html = "";
+        // FIXED: Using "PMDG (ALL)"
         const hierarchy = [
-            { main: "ALL PMDG", subs: [] },
+            { main: "PMDG (ALL)", subs: [] },
             { main: "PMDG I", subs: ["PMDD I", "PMDD II"] },
             { main: "PMDG II", subs: ["PMDD III", "PMDD IV"] },
             { main: "RMFSG", subs: ["FSD", "RMCD"] },
@@ -529,11 +523,9 @@
         const res = await fetch(`/projects?team_id=all&status=${status}&showArchived=${isArchiveView}`);
         allProjects = await res.json();
         
-        // Trigger the Smart Filter immediately after loading the raw data
         applyLocalFilters();
     }
 
-    // --- CASCADING SMART FILTER LOGIC ---
     function applyLocalFilters() {
         const teamFilterValue = document.getElementById('teamFilter').value;
         const timeFilter = document.getElementById('timeFilter').value;
@@ -555,13 +547,13 @@
                 if (endDate < today || endDate > nextWeek) return false;
             }
 
-            // SMART FILTERING
             if (selectedTeamName !== "all") {
                 const pTeam = p.team_name.trim().toUpperCase();
                 let match = false;
                 
-                if (selectedTeamName === "ALL PMDG") {
-                    match = ["ALL PMDG", "PMDG I", "PMDG II", "PMDD I", "PMDD II", "PMDD III", "PMDD IV"].includes(pTeam);
+                // FIXED: Looking precisely for "PMDG (ALL)" to trigger the full group
+                if (selectedTeamName === "PMDG (ALL)") {
+                    match = ["PMDG (ALL)", "PMDG I", "PMDG II", "PMDD I", "PMDD II", "PMDD III", "PMDD IV"].includes(pTeam);
                 } else if (selectedTeamName === "PMDG I") {
                     match = ["PMDG I", "PMDD I", "PMDD II"].includes(pTeam);
                 } else if (selectedTeamName === "PMDG II") {
