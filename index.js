@@ -21,7 +21,7 @@ const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
     user: 'amdteam.noreply@gmail.com', 
-    pass: 'fcveurqubbvfuknw' // <-- IMPORTANT: Replace with your actual Google App Password
+    pass: 'YOUR_NEW_16_LETTER_APP_PASSWORD_HERE' // <-- IMPORTANT: Replace with your NEW Google App Password
   }
 });
 
@@ -145,7 +145,12 @@ app.post('/forgot-password', async (req, res) => {
               </div>
           `
       };
-      transporter.sendMail(mailOptions);
+      
+      // CRASH FIX: Added the error callback to prevent Render from exiting with status 1
+      transporter.sendMail(mailOptions, (error) => { 
+          if (error) console.error("Forgot Password Email Error:", error); 
+      });
+      
       res.json({ success: true, message: "A temporary password has been emailed to you." });
     } catch (err) { res.status(500).send(err.message); }
 });
