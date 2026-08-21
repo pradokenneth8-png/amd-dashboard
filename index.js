@@ -13,7 +13,8 @@ app.use(express.json());
 app.use(express.static(__dirname));
 
 const pool = new Pool({
-  connectionString: 'postgresql://neondb_owner:npg_Szu1CKI8pqYN@ep-delicate-dawn-a1thm5ic-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require',
+  // UPDATED: New Neon database password applied here
+  connectionString: 'postgresql://neondb_owner:npg_zE3kj4mPurLB@ep-delicate-dawn-a1thm5ic-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require',
 });
 
 // --- EMAIL SETUP ---
